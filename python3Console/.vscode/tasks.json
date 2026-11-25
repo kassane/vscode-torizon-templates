@@ -4,7 +4,6 @@
         {
             "label": "create-prepare-venv",
             "detail": "",
-            "hide": true,
             "command": "echo",
             "type": "process",
             "args": [
@@ -135,9 +134,10 @@
                 "pre-cleanup",
                 "build-container-torizon-debug-arm",
                 "push-container-torizon-debug-arm",
-                "pull-container-torizon-debug-arm",
-                "run-container-torizon-debug-arm",
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
                 "wait-a-bit",
+                "ssh-check",
                 "stop-torizon-debug-generic",
                 "rsync-torizon-generic",
                 "start-torizon-debug-arm"
@@ -208,9 +208,10 @@
                 "pre-cleanup",
                 "build-container-torizon-debug-arm64",
                 "push-container-torizon-debug-arm64",
-                "pull-container-torizon-debug-arm64",
-                "run-container-torizon-debug-arm64",
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
                 "wait-a-bit",
+                "ssh-check",
                 "stop-torizon-debug-generic",
                 "rsync-torizon-generic",
                 "start-torizon-debug-arm64"

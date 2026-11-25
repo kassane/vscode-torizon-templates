@@ -11,8 +11,10 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import json

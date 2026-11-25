@@ -11,7 +11,8 @@ class _error_struct:
         self.code = code
         self.message = message
 
-
+# Standard Unix errors. There may be other standard error codes also:
+# https://github.com/kaushalparikh/nuttx/blob/master/include/errno.h
 class Error(Enum):
     ENOCONF = _error_struct(
         1, "Not configured"
@@ -27,6 +28,9 @@ class Error(Enum):
     )
     EABORT = _error_struct(
         170, "Abort"
+    )
+    ETASKEXEC = _error_struct(
+        310, "Task execution error"
     )
     ENOFOUND = _error_struct(
         404, "Not found"
@@ -51,4 +55,4 @@ def Error_Out(msg: str, error: Error) -> None:
 def last_return_code() -> int:
     # we are ignoring the type here because this will get the current
     # xonsh shell instance
-    return __xonsh__.last.returncode # type: ignore
+    return __xonsh__.lastcmd.returncode # type: ignore

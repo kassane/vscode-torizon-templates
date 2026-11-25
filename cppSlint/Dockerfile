@@ -16,6 +16,11 @@ ARG IMAGE_ARCH=
 ARG APP_ROOT=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Board GPU vendor prefix
 ##
 ARG GPU=
@@ -23,10 +28,10 @@ ARG GPU=
 ##
 # Slint Version
 ##
-ARG SLINT_VERSION=1.9.2
+ARG SLINT_VERSION=1.18.1
 
 # BUILD ------------------------------------------------------------------------
-FROM torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
+FROM --platform=linux/${HOST_ARCH} torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
 
 ARG IMAGE_ARCH
 ARG GPU
@@ -55,6 +60,11 @@ RUN if [ "$IMAGE_ARCH" = "arm64" ] ; then \
         dpkg-divert --divert /usr/bin/cmake.real --rename /usr/bin/cmake; \
         printf '#!/bin/sh\nexport CMAKE_TOOLCHAIN_FILE=/armhf-toolchain.cmake\nexec /usr/bin/cmake.real $*\n' > /usr/bin/cmake; \
         chmod 755 /usr/bin/cmake ;\
+    elif [ "$IMAGE_ARCH" = "arm" ] ; then \
+        echo armhf > /cross-toolchain-arch.txt; \
+        dpkg-divert --divert /usr/bin/cmake.real --rename /usr/bin/cmake; \
+        printf '#!/bin/sh\nexport CMAKE_TOOLCHAIN_FILE=/armhf-toolchain.cmake\nexec /usr/bin/cmake.real $*\n' > /usr/bin/cmake; \
+        chmod 755 /usr/bin/cmake ; \
     elif [ "$IMAGE_ARCH" = "amd64" ] ; then \
         echo amd64 > /cross-toolchain-arch.txt; \
     fi
@@ -84,6 +94,7 @@ RUN \
     apt-get update && \
     apt-get install --assume-yes \
     pkg-config \
+    libfontconfig1 \
     libfontconfig1-dev:$CROSS_TOOLCHAIN_ARCH \
     libxcb1-dev:$CROSS_TOOLCHAIN_ARCH \
     libxcb-render0-dev:$CROSS_TOOLCHAIN_ARCH \
@@ -153,6 +164,7 @@ RUN apt-get -q -y update && \
         if [ "${GPU}" = "-vivante" ] || [ "${GPU}" = "-imx8" ]; then \
             apt-get -q -y install \
             imx-gpu-viv-wayland-dev \
+            libgles-dev \
         ; else \
             apt-get -q -y install \
             libgl1 \

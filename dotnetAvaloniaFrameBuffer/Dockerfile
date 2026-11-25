@@ -5,6 +5,11 @@
 ARG IMAGE_ARCH=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Base container version
 ##
 ARG BASE_VERSION=4
@@ -22,7 +27,7 @@ ARG GPU=
 # ARGUMENTS --------------------------------------------------------------------
 
 # BUILD ------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=linux/${HOST_ARCH} mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 ARG IMAGE_ARCH
 ARG APP_ROOT
@@ -36,13 +41,15 @@ RUN dotnet restore __change__.csproj && \
         export ARCH=${IMAGE_ARCH} ; \
     elif [ "$IMAGE_ARCH" = "armhf" ] ; then \
         export ARCH="arm" ; \
+    elif [ "$IMAGE_ARCH" = "arm" ] ; then \
+        export ARCH="arm" ; \
     elif [ "$IMAGE_ARCH" = "amd64" ] ; then \
         export ARCH="x64" ; \
     fi && \
     dotnet publish __change__.csproj -c Release -r linux-${ARCH} --no-self-contained && \
     # this if is a edge case when the ARCH and IMAGE_ARCH are equal, like arm64
-    if [ "./bin/Release/net8.0/linux-${ARCH}" != "./bin/Release/net8.0/linux-${IMAGE_ARCH}" ]; then \
-        mv ./bin/Release/net8.0/linux-${ARCH} ./bin/Release/net8.0/linux-${IMAGE_ARCH}; \
+    if [ "./bin/Release/net10.0/linux-${ARCH}" != "./bin/Release/net10.0/linux-${IMAGE_ARCH}" ]; then \
+        mv ./bin/Release/net10.0/linux-${ARCH} ./bin/Release/net10.0/linux-${IMAGE_ARCH}; \
     fi
 
 # BUILD ------------------------------------------------------------------------
@@ -50,7 +57,7 @@ RUN dotnet restore __change__.csproj && \
 
 # DEPLOY -----------------------------------------------------------------------
 FROM --platform=linux/${IMAGE_ARCH} \
-    torizon/dotnet8-gtk3${GPU}:${BASE_VERSION} AS deploy
+    torizon/dotnet10-gtk3${GPU}:${BASE_VERSION} AS deploy
 
 ARG IMAGE_ARCH
 ARG GPU
@@ -61,6 +68,7 @@ RUN apt-get -q -y update && \
         if [ "${GPU}" = "-vivante" ] || [ "${GPU}" = "-imx8" ]; then \
             apt-get -q -y install \
             imx-gpu-viv-wayland-dev \
+            libgles-dev \
         ; else \
             apt-get -q -y install \
             libgl1 \
@@ -85,7 +93,7 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
 # Copy the application compiled in the build step to the $APP_ROOT directory
 # path inside the container, where $APP_ROOT is the torizon_app_root
 # configuration defined in settings.json
-COPY --from=build ${APP_ROOT}/bin/Release/net8.0/linux-${IMAGE_ARCH}/publish ${APP_ROOT}
+COPY --from=build ${APP_ROOT}/bin/Release/net10.0/linux-${IMAGE_ARCH}/publish ${APP_ROOT}
 
 # TODO: if you need to run as root user, you can remove this line
 USER torizon

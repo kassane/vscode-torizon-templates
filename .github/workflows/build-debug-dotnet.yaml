@@ -24,19 +24,24 @@ jobs:
             vendor:  '{ "arch": "arm64", "torizon_arch": "aarch64" }'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get Host Absolute Workspace Path
         run: |
           echo "${{ github.workspace }}" >> abs-path
           cat abs-path
 
+      - name: Fixup actions pipx paths
+        run: |
+          echo "PIPX_HOME=$HOME/.local/pipx" >> $GITHUB_ENV
+          echo "PIPX_BIN_DIR=$HOME/.local/bin" >> $GITHUB_ENV
+
       - name: Setup Xonsh
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip pipx
-          sudo bash ./scripts/bash/setup-xonsh.sh
-          sudo ln -s /root/.local/bin/xonsh /usr/bin/xonsh
+          PSSWD=noempty bash ./scripts/bash/setup-xonsh.sh
+
 
       - name: Update torizon-utils module
         run: |
@@ -54,7 +59,7 @@ jobs:
           import os
           import json
 
-          $RAISE_SUBPROC_ERROR = True
+          $XONSH_SUBPROC_CMD_RAISE_ERROR = True
           $XONSH_SHOW_TRACEBACK = True
           $UPDATE_OS_ENVIRON = True
 
@@ -64,6 +69,7 @@ jobs:
 
           xonsh ./scripts/create-from-template.xsh \
                   @(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}") \
+                  @(f"{os.environ['PROJECT_FOLDER']}CITest") \
                   @(f"{os.environ['PROJECT_FOLDER']}CITest") \
                   @(f"{os.environ['PROJECT_CONTAINER']}-ci-test") \
                   @(os.environ['GITHUB_WORKSPACE']) \

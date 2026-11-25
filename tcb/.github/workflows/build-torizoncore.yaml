@@ -2,52 +2,55 @@ name: Build & Deploy TorizonCore
 on:
   - push
 
+env:
+  TASKS_DISABLE_INTERACTIVE_INPUT: "True"
+  TASKS_OVERRIDE_ENV: "False"
+  PLATFORM_CLIENT_ID: ${{ secrets.PLATFORM_CLIENT_ID }}
+  PLATFORM_CLIENT_SECRET: ${{ secrets.PLATFORM_CLIENT_SECRET }}
+  PLATFORM_CREDENTIALS: ${{ secrets.PLATFORM_CREDENTIALS }}
+
+  TORIZON_CI_SETTINGS_FILE: ${{ vars.TORIZON_CI_SETTINGS_FILE || '.vscode/settings.json' }}
+  DEPLOY_TO_FLEET: ${{ vars.DEPLOY_TO_FLEET || 'false' }}
+
 jobs:
   build-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Build & Deploy TorizonCore
     container:
       image: torizonextras/torizon-dev:dev
+      options: --user root
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        id: cache
-        with:
-          path: storage/
-          key: tcb
+      - uses: actions/checkout@v5
 
-      - name: Get Host Absolute Workspace Path
+      - name: Initial Setup
+        shell: bash
         run: |
+
           echo "${{ github.workspace }}" >> abs-path
           cat abs-path
+          xonsh ./.conf/validate-json.xsh
+          xonsh ./.vscode/tasks.xsh run validate-pipeline-settings
+          xonsh ./.conf/apply-ci-settings-file.xsh
+          xonsh ./.vscode/tasks.xsh run tcb-setup
 
-      - name: Decode Credentials
-        env:
-          PLATFORM_CREDENTIALS: ${{ secrets.PLATFORM_CREDENTIALS }}
-        run: |
-          echo $PLATFORM_CREDENTIALS | base64 -d > credentials.zip
 
       - name: Build TorizonCore Image
-        shell: xonsh {0}
+        shell: bash
         run: |
-          xonsh ./.vscode/tasks.xsh run tcb-setup
+
           xonsh ./.vscode/tasks.xsh run tcb-build
 
       - name: Push OS Package to Platform
-        shell: xonsh {0}
-        env:
-          PLATFORM_CLIENT_ID: ${{ secrets.PLATFORM_CLIENT_ID }}
-          PLATFORM_CLIENT_SECRET: ${{ secrets.PLATFORM_CLIENT_SECRET }}
+        shell: bash
         run: |
-          xonsh ./.vscode/tasks.xsh run tcb-setup
+
+          echo $PLATFORM_CREDENTIALS | base64 -d > credentials.zip
+
           xonsh ./.vscode/tasks.xsh run tcb-platform-push-ostree
 
       - name: Deploy to Fleet
-        shell: xonsh {0}
-        env:
-          TASKS_OVERRIDE_ENV: "False"
-          PLATFORM_CLIENT_ID: ${{ secrets.PLATFORM_CLIENT_ID }}
-          PLATFORM_CLIENT_SECRET: ${{ secrets.PLATFORM_CLIENT_SECRET }}
-        if: ${{ github.ref == 'refs/heads/main' }}
+        shell: bash
+        if: env.DEPLOY_TO_FLEET == 'true'
         run: |
+
           xonsh ./.vscode/tasks.xsh run platform-update-fleet

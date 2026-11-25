@@ -10,8 +10,10 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
@@ -24,7 +26,13 @@ _deviceHostname = sys.argv[2]
 _projectName = sys.argv[3]
 _deviceArch = sys.argv[4]
 
-config = configparser.ConfigParser()
+config = configparser.ConfigParser(
+    empty_lines_in_values=False
+)
+
+# maintain the case of the keys
+config.optionxform = lambda option: option
+
 config.read(f"{_path}/.qt/QtProject/QtCreator.ini")
 
 # debug

@@ -168,7 +168,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-arm/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-arm/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -179,8 +179,9 @@
                 "publish-debug-arm",
                 "build-container-torizon-debug-arm",
                 "push-container-torizon-debug-arm",
-                "pull-container-torizon-debug-arm",
-                "run-container-torizon-debug-arm"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -247,7 +248,6 @@
             ],
             "dependsOrder": "sequence",
             "dependsOn": [
-                "wait-a-bit"
             ],
             "problemMatcher": "$msCompile",
             "icon": {
@@ -273,7 +273,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-arm64/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-arm64/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -284,8 +284,9 @@
                 "publish-debug-arm64",
                 "build-container-torizon-debug-arm64",
                 "push-container-torizon-debug-arm64",
-                "pull-container-torizon-debug-arm64",
-                "run-container-torizon-debug-arm64"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -312,7 +313,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-arm64/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-arm64/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -323,7 +324,7 @@
                 "publish-debug-arm64",
                 "build-container-torizon-debug-arm64",
                 "push-container-torizon-debug-arm64",
-                "pull-container-torizon-debug-arm64",
+                "pull-container-torizon-debug",
                 "run-container-cog-torizon-debug-arm64"
             ],
             "dependsOrder": "sequence",

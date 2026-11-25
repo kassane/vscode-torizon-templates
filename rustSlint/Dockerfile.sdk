@@ -5,6 +5,11 @@
 ARG IMAGE_ARCH=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Base container version
 ##
 ARG CROSS_SDK_BASE_TAG=4
@@ -20,7 +25,7 @@ ARG APP_ROOT=
 ARG GPU=
 
 # BUILD ------------------------------------------------------------------------
-FROM torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
+FROM --platform=linux/${HOST_ARCH} torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
 
 ARG IMAGE_ARCH
 ARG GPU
@@ -92,9 +97,6 @@ RUN apt-get -q -y update && \
     && \
     apt-get clean && apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
-
-# Don't require font-config when the compiler runs
-ENV RUST_FONTCONFIG_DLOPEN=on
 
 # Default to the Skia backend for best performance
 ENV SLINT_BACKEND=linuxkms-skia

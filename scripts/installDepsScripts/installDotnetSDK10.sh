@@ -4,7 +4,7 @@ set -e
 # This is a script to install .NET on Ubuntu, based on the official Microsoft recommended method of installation:
 # https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
 
-package='dotnet-sdk-8.0'
+package='dotnet-sdk-10.0'
 
 # Check if we are running on the LTS Ubuntu or Debian
 if [ -f /etc/os-release ]; then

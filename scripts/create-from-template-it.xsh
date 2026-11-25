@@ -11,8 +11,10 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
@@ -94,6 +96,9 @@ if not _project_path or _project_path == "":
         Error.EUSER
     )
 
+# Resolve relative paths to absolute paths based on the current working directory
+_project_path = os.path.abspath(os.path.join("/workspace", _project_path))
+
 if not os.path.exists(_project_path):
     Error_Out(
         "❌ :: Project path does not exists :: ❌",
@@ -111,6 +116,7 @@ print("🆕 Creating project...", color=Color.YELLOW)
 
 xonsh ./create-from-template.xsh \
     @(f"{os.environ['HOME']}/.apollox/{_template['folder']}") \
+    @(_project_name) \
     @(_project_name) \
     @(_project_container_name) \
     @(_project_path) \

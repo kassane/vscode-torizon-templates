@@ -12,8 +12,10 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
@@ -124,7 +126,7 @@ if _rc_prefix is None:
 _hostname = _target_device["Hostname"]
 _settings["torizon_psswd"] = _target_device["__pass__"]
 _settings["torizon_ip"] = _target_device["Ip"]
-_settings["torizon_ssh_port"] = _target_device["SshPort"]
+_settings["torizon_ssh_port"] = f"{_target_device['SshPort']}"
 _settings["torizon_login"] = _target_device["Login"]
 _settings["host_ip"] = get_host_ip()
 _settings["torizon_arch"] = _target_device["Arch"]

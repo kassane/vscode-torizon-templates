@@ -23,23 +23,42 @@ jobs:
             vendor: '{ "arch": "arm64", "torizon_arch": "aarch64" }'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get Host Absolute Workspace Path
         run: |
           echo "${{ github.workspace }}" >> abs-path
           cat abs-path
 
+      - name: Fixup actions pipx paths
+        run: |
+          echo "PIPX_HOME=$HOME/.local/pipx" >> $GITHUB_ENV
+          echo "PIPX_BIN_DIR=$HOME/.local/bin" >> $GITHUB_ENV
+
       - name: Setup Xonsh
         run: |
           sudo apt-get update
           sudo apt-get install -y python3 python3-pip pipx
-          sudo bash ./scripts/bash/setup-xonsh.sh
-          sudo ln -s /root/.local/bin/xonsh /usr/bin/xonsh
+          PSSWD=noempty bash ./scripts/bash/setup-xonsh.sh
+
 
       - name: Update torizon-utils module
         run: |
           pipx inject -f xonsh ./scripts/utils/pip/
+
+      - name: Update the docker and docker compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
       - name: Build ${{ matrix.project.folder }} Dockerfile
         shell: xonsh {0}
@@ -48,12 +67,13 @@ jobs:
           PROJECT_CONTAINER: ${{ matrix.project.container }}
           VENDOR: ${{ matrix.project.vendor }}
           DOCKER_LOGIN: localhost:5002
+          DOCKER_BUILDKIT: 1
 
         run: |
           import os
           import json
 
-          $RAISE_SUBPROC_ERROR = True
+          $XONSH_SUBPROC_CMD_RAISE_ERROR = True
           $XONSH_SHOW_TRACEBACK = True
           $UPDATE_OS_ENVIRON = True
 
@@ -61,14 +81,35 @@ jobs:
           $TORIZON_ARCH = vendor["torizon_arch"]
           $PROJECT_ARCH = vendor["arch"]
 
-          xonsh ./scripts/create-from-template.xsh \
-                  @(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}") \
-                  @(f"{os.environ['PROJECT_FOLDER']}CITest") \
-                  @(f"{os.environ['PROJECT_CONTAINER']}-ci-test") \
-                  @(os.environ['GITHUB_WORKSPACE']) \
-                  @(os.environ['PROJECT_FOLDER']) \
-                  "false" \
-                  "false"
+          _custom_dict = None
+          if os.environ['PROJECT_FOLDER'] == 'cppQML':
+            _custom_dict = [
+              {"id": "qt_license_login", "value": "", "type": "text"},
+              {"id": "qt_license_password", "value": "", "type": "password"},
+              {"id": "container", "value": "cpp-qml-ci-test", "type": "text"}
+            ]
+
+            xonsh ./scripts/create-from-template.xsh \
+                    @(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}") \
+                    @(f"{os.environ['PROJECT_FOLDER']}CITest") \
+                    @(f"{os.environ['PROJECT_FOLDER']}CITest") \
+                    @(f"{os.environ['PROJECT_CONTAINER']}-ci-test") \
+                    @(os.environ['GITHUB_WORKSPACE']) \
+                    @(os.environ['PROJECT_FOLDER']) \
+                    "false" \
+                    "false" \
+                    --customFields \
+                    @(json.dumps(_custom_dict))
+          else:
+            xonsh ./scripts/create-from-template.xsh \
+                    @(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}") \
+                    @(f"{os.environ['PROJECT_FOLDER']}CITest") \
+                    @(f"{os.environ['PROJECT_FOLDER']}CITest") \
+                    @(f"{os.environ['PROJECT_CONTAINER']}-ci-test") \
+                    @(os.environ['GITHUB_WORKSPACE']) \
+                    @(os.environ['PROJECT_FOLDER']) \
+                    "false" \
+                    "false"
 
           cp "abs-path" @(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}CITest")
           os.chdir(f"{os.environ['GITHUB_WORKSPACE']}/{os.environ['PROJECT_FOLDER']}CITest")
@@ -80,6 +121,13 @@ jobs:
             json.dump(settings_json, file, indent=4)
 
           chmod a+rw -R .
+
+          # cppQML: keep the Qt credential digest in the ignored state file
+          # and write a random, non-secret nonce to the Docker cache-buster
+          # before any image build
+          if os.environ['PROJECT_FOLDER'] == 'cppQML':
+            xonsh ./.vscode/tasks.xsh run qt-enterprise-fill-license-login-password
+
           xonsh ./.vscode/tasks.xsh run run-torizon-binfmt
 
           if os.environ['PROJECT_FOLDER'] == 'cLvgl':
@@ -87,3 +135,4 @@ jobs:
 
           xonsh ./.vscode/tasks.xsh run @(f"build-debug-{os.environ['PROJECT_ARCH']}")
           xonsh ./.vscode/tasks.xsh run @(f"build-container-torizon-debug-{os.environ['PROJECT_ARCH']}")
+

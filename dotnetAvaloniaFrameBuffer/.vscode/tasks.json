@@ -3,7 +3,6 @@
     "tasks": [
         {
             "label": "create-preview-assets",
-            "hide": true,
             "command": "${command:avalonia.createPreviewerAssets}",
             "type": "process",
             "isBuildCommand": true,
@@ -179,7 +178,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-arm/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-arm/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -190,9 +189,10 @@
                 "publish-debug-arm",
                 "build-container-torizon-debug-arm",
                 "push-container-torizon-debug-arm",
-                "pull-container-torizon-debug-arm",
-                "run-container-torizon-debug-arm",
-                "pos-cleanup"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "pos-cleanup",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -224,7 +224,9 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
                 "cat /dev/zero > /dev/fb0 ; true"
             ],
             "dependsOrder": "sequence",
@@ -260,8 +262,10 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
-                "LOCAL_REGISTRY=${config:host_ip} TAG=arm docker-compose down --remove-orphans"
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
+                "LOCAL_REGISTRY=localhost TAG=arm docker-compose down --remove-orphans"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -318,7 +322,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-arm64/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-arm64/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -329,9 +333,10 @@
                 "publish-debug-arm64",
                 "build-container-torizon-debug-arm64",
                 "push-container-torizon-debug-arm64",
-                "pull-container-torizon-debug-arm64",
-                "run-container-torizon-debug-arm64",
-                "pos-cleanup"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "pos-cleanup",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -363,7 +368,9 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
                 "cat /dev/zero > /dev/fb0 ; true"
             ],
             "dependsOrder": "sequence",
@@ -399,8 +406,10 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
-                "LOCAL_REGISTRY=${config:host_ip} TAG=arm64 docker-compose down --remove-orphans"
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
+                "LOCAL_REGISTRY=localhost TAG=arm64 docker-compose down --remove-orphans"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -454,11 +463,11 @@
             "command": "rm",
             "args": [
                 "-rf",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-amd64",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-amd64",
                 "&&",
                 "mv",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-x64",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-amd64"
+                "${workspaceFolder}/bin/Debug/net10.0/linux-x64",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-amd64"
             ],
             "dependsOrder": "sequence",
             "dependsOn": [
@@ -485,11 +494,11 @@
             "command": "rm",
             "args": [
                 "-rf",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-amd64",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-amd64",
                 "&&",
                 "mv",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-x64",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-amd64"
+                "${workspaceFolder}/bin/Debug/net10.0/linux-x64",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-amd64"
             ],
             "dependsOrder": "sequence",
             "dependsOn": [
@@ -512,7 +521,7 @@
                 "-av",
                 "-e",
                 "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                "${workspaceFolder}/bin/Debug/net8.0/linux-amd64/publish/",
+                "${workspaceFolder}/bin/Debug/net10.0/linux-amd64/publish/",
                 "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
             ],
             "dependsOn": [
@@ -523,8 +532,8 @@
                 "publish-debug-amd64",
                 "build-container-torizon-debug-amd64",
                 "push-container-torizon-debug-amd64",
-                "pull-container-torizon-debug-amd64",
-                "run-container-torizon-debug-amd64",
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
                 "pos-cleanup"
             ],
             "dependsOrder": "sequence",
@@ -557,7 +566,9 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
                 "cat /dev/zero > /dev/fb0 ; true"
             ],
             "dependsOrder": "sequence",
@@ -593,8 +604,10 @@
                 "UserKnownHostsFile=/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
-                "torizon@${config:torizon_ip}",
-                "LOCAL_REGISTRY=${config:host_ip} TAG=amd64 docker-compose down --remove-orphans"
+                "-o",
+                "PubkeyAuthentication=no",
+                "${config:torizon_login}@${config:torizon_ip}",
+                "LOCAL_REGISTRY=localhost TAG=amd64 docker-compose down --remove-orphans"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",

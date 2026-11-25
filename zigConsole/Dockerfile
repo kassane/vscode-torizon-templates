@@ -11,13 +11,18 @@ ARG BASE_VERSION=4
 ARG IMAGE_ARCH=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Directory of the application inside container
 ##
 ARG APP_ROOT=
 
 
 # BUILD ------------------------------------------------------------------------
-FROM kassany/bookworm-ziglang:${SDK_BASE_VERSION} AS build
+FROM --platform=linux/${HOST_ARCH} kassany/bookworm-ziglang:${SDK_BASE_VERSION} AS build
 
 ARG APP_ROOT
 ARG IMAGE_ARCH
@@ -56,6 +61,8 @@ RUN rm -rf ${APP_ROOT}/target
 RUN if [ "$IMAGE_ARCH" = "arm64" ] ; then \
         zig build -Doptimize=ReleaseSmall -Dtarget=aarch64-linux-gnu --summary all -freference-trace ; \
     elif [ "$IMAGE_ARCH" = "armhf" ] ; then \
+        zig build -Doptimize=ReleaseSmall -Dtarget=arm-linux-gnu --summary all -freference-trace ; \
+    elif [ "$IMAGE_ARCH" = "arm" ] ; then \
         zig build -Doptimize=ReleaseSmall -Dtarget=arm-linux-gnu --summary all -freference-trace ; \
     elif [ "$IMAGE_ARCH" = "amd64" ] ; then \
         zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-linux-gnu --summary all -freference-trace ; \

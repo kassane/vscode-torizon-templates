@@ -3,6 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.debug
+      platforms:
+        - linux/${IMAGE_ARCH}
+      secrets:
+        - qt-login
+        - qt-password
     image: ${LOCAL_REGISTRY}:5002/__container__-debug:${TAG}
     ports:
       # SSH debug
@@ -23,17 +28,26 @@ services:
       - "c 4:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      - "c 199:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-    depends_on: [
-      weston
-    ]
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    profiles:
+      - debug
+    depends_on:
+      weston:
+        condition: service_healthy
+
 
   __container__:
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - linux/${IMAGE_ARCH}
+      secrets:
+        - qt-login
+        - qt-password
     image: ${DOCKER_LOGIN}/__container__:${TAG}
     volumes:
       - type: bind
@@ -47,12 +61,16 @@ services:
       - "c 4:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      - "c 199:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-    depends_on: [
-      weston
-    ]
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    profiles:
+      - release
+    depends_on:
+      weston:
+        condition: service_healthy
+
 
   weston:
     image: torizon/weston${GPU}:4
@@ -78,9 +96,22 @@ services:
       - "c 4:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      # ... for /dev/galcore
-      - "c 199:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-      # ... for /dev/dma_heap device
-      - 'c 253:* rmw'
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    profiles:
+      - release
+      - debug
+    healthcheck:
+      test: ["CMD", "test", "-S", "/tmp/1000-runtime-dir/wayland-0"]
+      interval: 5s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+
+secrets:
+  qt-login:
+    environment: QT_LICENSE_LOGIN
+  qt-password:
+    environment: QT_LICENSE_PASSWORD

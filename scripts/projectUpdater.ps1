@@ -198,6 +198,8 @@ if ($_torizonOSMajor -ne $_templatesJsonTorizonMajor) {
             }
         }
 
+        # Remove .vscode/tasks.ps1
+        Remove-Item  $projectFolder/.vscode/tasks.ps1 -Force
 
         # get the xonsh updater
         Copy-Item `
@@ -213,11 +215,7 @@ if ($_torizonOSMajor -ne $_templatesJsonTorizonMajor) {
         # now call the xonsh updater
         & "$env:HOME/.local/bin/xonsh" `
             $projectFolder/.conf/project-updater.xsh `
-            $projectFolder `
-            $projectName `
             "false" `
-            "true" `
-            "false"
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor DarkRed "❌ Error updating the project"

@@ -8,13 +8,20 @@ import mimetypes
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Type, TypeVar, Union, Tuple, Optional, Literal
+from torizon_templates_utils.network import is_in_docker_container
 from torizon_templates_utils.colors import print, Color
 
 T = TypeVar('T')
 
+REPLACE_WHITELIST = [
+    "torizon_",
+    "docker_",
+    "inputBox-"
+]
+
 def replace_tasks_input():
     for file in Path('.').rglob('*.json'):
-        print(file)
+        print(file, flush=True)
         mime_type, _ = mimetypes.guess_type(file)
 
         if mime_type is None or mime_type.startswith("application/octet-stream"):
@@ -22,9 +29,9 @@ def replace_tasks_input():
                 with open(file, 'r') as f:
                     content = f.read()
 
-                content = content.replace("input:dockerLogin", "command:docker_login")
-                content = content.replace("input:dockerImageRegistry", "command:docker_registry")
-                content = content.replace("input:dockerPsswd", "command:docker_password")
+                content = content.replace("input:dockerLogin", "command:docker_login.__change__")
+                content = content.replace("input:dockerImageRegistry", "command:inputBox-docker_registry.__change__")
+                content = content.replace("input:dockerPsswd", "command:docker_password.__change__")
 
                 with open(file, 'w') as f:
                     f.write(content)
@@ -65,6 +72,7 @@ class TorizonSettings:
             torizon_ip: Optional[str] = None,
             torizon_ssh_port: Optional[str] = None,
             host_ip: Optional[str] = None,
+            host_arch: Optional[str] = None,
             torizon_workspace: Optional[str] = None,
             torizon_debug_ssh_port: Optional[str] = None,
             torizon_debug_port1: Optional[str] = None,
@@ -87,6 +95,7 @@ class TorizonSettings:
         self.torizon_ip = torizon_ip
         self.torizon_ssh_port = torizon_ssh_port
         self.host_ip = host_ip
+        self.host_arch = host_arch
         self.torizon_workspace = torizon_workspace
         self.torizon_debug_ssh_port = torizon_debug_ssh_port
         self.torizon_debug_port1 = torizon_debug_port1
@@ -102,6 +111,25 @@ class TorizonSettings:
         self.tcb_version = tcb_version
         self.torizon_gpuPrefixRC = torizon_gpuPrefixRC
         self.any = any
+
+    def get_host_arch(self) -> Optional[str]:
+        self.host_arch = os.uname().machine
+
+        # fix up the host arch
+        if self.host_arch == "aarch64":
+            self.host_arch = "arm64"
+        elif self.host_arch == "armv7":
+            self.host_arch = "arm"
+        elif self.host_arch == "armv7l":
+            self.host_arch = "arm"
+        elif self.host_arch == "armhf":
+            self.host_arch = "arm"
+        elif self.host_arch == "x86_64":
+            self.host_arch = "amd64"
+        elif self.host_arch == "riscv":
+            self.host_arch = "riscv64"
+
+        return self.host_arch
 
 
 # These are from:
@@ -397,17 +425,55 @@ def get_tasks_json(file_path: str) -> TaskConfiguration:
 
 
 def get_settings_json(
-        file_path: str,
-        custom_file: str | None = None
+    file_path: str,
+    custom_file: str | None = None
 ) -> TorizonSettings:
     _file = custom_file if custom_file else "settings.json"
+    local_settings_path = Path(file_path) / ".vscode" / _file
 
-    with open(f"{file_path}/.vscode/{_file}", 'r') as file:
-        _tor_settings = _cast_from_json(json.load(file), TorizonSettings)
+    try:
+        with open(local_settings_path, 'r') as file:
+            local_settings = json.load(file)
+    except FileNotFoundError:
+        print(f"No local settings file found at {local_settings_path}")
+        local_settings = {}
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in settings file: {e}")
 
+    workspace_settings = {}
+    parent_dir = Path(file_path).parent
+    # First check for .code-workspace files directly inside the parent
+    for child in parent_dir.glob("*.code-workspace"):
+        try:
+            with open(child, "r") as ws_file:
+                data = json.load(ws_file)
+                if "settings" in data:
+                    print(f"Merging settings from: {child}")
+                    workspace_settings = data["settings"]
+                    break
+        except Exception as e:
+            print(f"Error reading {child}: {e}")
 
+    # If not found, scan folders in parent_dir
+    if not workspace_settings:
+        for sub in parent_dir.iterdir():
+            if sub.is_dir():
+                for child in sub.glob("*.code-workspace"):
+                    try:
+                        with open(child, "r") as ws_file:
+                            data = json.load(ws_file)
+                            if "settings" in data:
+                                print(f"Merging settings from: {child}")
+                                workspace_settings = data["settings"]
+                                break
+                    except Exception as e:
+                        print(f"Error reading {child}: {e}")
+                if workspace_settings:
+                    break
 
-        return _tor_settings
+    # Merge with local settings taking precedence
+    combined = {**workspace_settings, **local_settings}
+    return _cast_from_json(combined, TorizonSettings)
 
 
 class TaskRunner:
@@ -428,25 +494,25 @@ class TaskRunner:
         self.__settings = settings
         self.__debug = debug
         self.__gitlab_ci = False
-        self.__override_env = True
+        self.__tasks_override_env = False
         self.__cli_inputs: Dict[str, str] = {}
         self.__can_receive_interactive_input = False
 
         # check if we have stdin
-        if os.isatty(0) and ("TASKS_DISABLE_INTERACTIVE_INPUT" not in os.environ):
+        if os.isatty(0) and (("TASKS_DISABLE_INTERACTIVE_INPUT" not in os.environ) or (os.environ["TASKS_DISABLE_INTERACTIVE_INPUT"] != "True")):
             self.__can_receive_interactive_input = True
 
         # environment configs
-        if "DOCKER_PSSWD" in os.environ:
-            os.environ["config:docker_password"] = os.environ["DOCKER_PSSWD"]
+        if "DOCKER_PASSWORD" in os.environ:
+            os.environ["config:docker_password"] = os.environ["DOCKER_PASSWORD"]
 
         if "GITLAB_CI" in os.environ:
             self.__gitlab_ci = True
 
-        if "TASKS_OVERRIDE_ENV" in os.environ:
-            self.__override_env = False
+        if "TASKS_OVERRIDE_ENV" in os.environ and os.environ["TASKS_OVERRIDE_ENV"] == "True":
+            self.__tasks_override_env = True
 
-        if "TASKS_DEBUG" in os.environ:
+        if "TASKS_DEBUG" in os.environ and os.environ["TASKS_DEBUG"] == "True":
             self.__debug = True
 
         self.__settings_to_env()
@@ -473,10 +539,10 @@ class TaskRunner:
         for task in self.__tasks:
             if no_index:
                 if show_hidden or not task.hide:
-                    print(task.label)
+                    print(task.label, flush=True)
             else:
                 if show_hidden or not task.hide:
-                    print(f"{i}. \t{task.label}")
+                    print(f"{i}. \t{task.label}", flush=True)
 
             i += 1
 
@@ -503,7 +569,7 @@ class TaskRunner:
 
         if task is not None:
             task_txt = json.dumps(task.to_dict(), indent=4)
-            print(task_txt)
+            print(task_txt, flush=True)
         else:
             raise ReferenceError(f"Task with index [{label}] not found")
 
@@ -531,7 +597,42 @@ class TaskRunner:
 
         for value in env:
             if "${command:torizon_" in value:
+                # here is not needed to clean the torizon_<prop>.<project_name>
+                # because this will be handled on the cmd args check
                 value = value.replace("${command:torizon_", "${config:torizon_")
+
+            ret.append(value)
+
+        return ret
+
+
+    def __check_input_boxes(self, env: List[str]) -> List[str]:
+        ret: List[str] = []
+
+        for value in env:
+            value = value.replace("${command:inputBox-", "${config:")
+            ret.append(value)
+
+        return ret
+
+
+    def __check_cmd_args(self, env: List[str]) -> List[str]:
+        ret: List[str] = []
+
+        for value in env:
+            for whitelisted_start in REPLACE_WHITELIST:
+                if value.startswith("${command:" + whitelisted_start) or value.startswith("${config:" + whitelisted_start):
+
+                    if "." in value:
+                        value_p1, value_p2 = value.split(".", 1)
+                        ret_p2 = value_p2.split("}", 1)
+
+                        if len(ret_p2) > 1:
+                            value = f"{value_p1}}}{ret_p2[1]}"
+                        else:
+                            value = f"{value_p1}}}"
+                    break
+
             ret.append(value)
 
         return ret
@@ -558,25 +659,36 @@ class TaskRunner:
                     _p_ret = subprocess.run(
                         [
                             "xonsh",
-                            "./conf/torizon-io.xsh",
+                            "./.conf/torizon-io.xsh",
                             "package", "latest", "version",
                             os.environ["config:tcb_packageName"]
                         ],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        env=os.environ
                     )
 
                     if _p_ret.returncode != 0:
-                        raise RuntimeError(f"Error running torizon-io.xsh: {_p_ret.stderr}")
+                        # Sometimes the error is presented on stdout and not stderr
+                        raise RuntimeError(f"Error running torizon-io.xsh: {_p_ret}")
 
-                    _next = int(_p_ret.stdout.strip()) +1
+                    # TODO: Maybe not use this and instead disable colors on the terminal
+                    # Remove ANSI escape sequences. Regex from this thread:
+                    # https://stackoverflow.com/questions/14693701/how-can-i-remove-the-ansi-escape-sequences-from-a-string-in-python
+                    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                    _latest_ver = ansi_escape.sub('', _p_ret.stdout.strip())
+
+                    _latest_ver_number = _latest_ver.rsplit('-', 1)[-1]
+                    _latest_ver_last_number = _latest_ver_number.rsplit('.', 1)[-1]
+                    try:
+                        _next = int(_latest_ver_last_number) +1
+                    except:
+                        raise ValueError(f"Package version should be in one of the following formats: <int>, <string-int>, <major.minor.patch>, or <string-major.minor.patch>. Depending on format, int or patch value will be incremented")
 
                     if self.__debug:
-                        print(f"Next package version: {_next}")
+                        print(f"Next package version: {_next}", flush=True)
 
-                    ret.append(
-                        value.replace("${{command:tcb.getNextPackageVersion}}", f"{_next}")
-                    )
+                    value = value.replace(f"${{command:tcb.getNextPackageVersion}}", f"{_next}")
 
                 elif "tcb.outputTEZIFolder" in value:
                     # load the tcbuild.yaml
@@ -589,7 +701,7 @@ class TaskRunner:
                         except KeyError:
                             raise RuntimeError("Error replacing variable tcb.outputTEZIFolder, make sure the tcbuild.yaml has the output.easy-installer.local property")
 
-                        value = value.replace("${{command:tcb.outputTEZIFolder}}", _tezi_folder)
+                        value = value.replace(f"${{command:tcb.outputTEZIFolder}}", _tezi_folder)
 
                 # for all the items we need to replace ${command:tcb. with ${config:tcb.
                 _pattern = r"(?<=\$\{command:tcb\.).*?(?=\s*})"
@@ -777,6 +889,8 @@ class TaskRunner:
 
             if _env_value:
                 expvalue = [_env_value]
+                expvalue = self.__check_input_boxes(expvalue)
+                expvalue = self.__check_cmd_args(expvalue)
                 expvalue = self.__check_workspace_folder(expvalue)
                 expvalue = self.__check_torizon_inputs(expvalue)
                 expvalue = self.__check_docker_inputs(expvalue)
@@ -786,8 +900,8 @@ class TaskRunner:
                 exp_value_str = " ".join(expvalue)
 
                 if self.__debug:
-                    print(f"Env: {env}={_env_value}", color=Color.YELLOW)
-                    print(f"Parsed Env: {env}={exp_value_str}", color=Color.YELLOW)
+                    print(f"Env: {env}={_env_value}", color=Color.YELLOW, flush=True)
+                    print(f"Parsed Env: {env}={exp_value_str}", color=Color.YELLOW, flush=True)
 
                 return exp_value_str
 
@@ -795,7 +909,7 @@ class TaskRunner:
 
 
     def __replace_docker_host(self, arg: str) -> str:
-        if "DOCKER_HOST" in arg:
+        if "DOCKER_HOST" in arg and is_in_docker_container():
             arg = arg.replace("DOCKER_HOST=", "DOCKER_HOST=tcp://docker:2375")
 
         return arg
@@ -824,10 +938,22 @@ class TaskRunner:
         if _task is None:
             raise ReferenceError(f"Task with label [{label}] not found")
 
+        _depends = []
+        if _task.dependsOn is not None:
+            _depends = _task.dependsOn
+
+        # first we need to run the dependencies
+        for dep in _depends:
+            self.run_task(dep)
+
+        print(f"> Executing task: {label} <", color=Color.GREEN, flush=True)
+
         # prepare the command
         _cmd = _task.command
 
         # the cmd itself can use the mechanism to replace stuff
+        _cmd = self.__check_input_boxes([_cmd])[0]
+        _cmd = self.__check_cmd_args([_cmd])[0]
         _cmd = self.__check_workspace_folder([_cmd])[0]
         _cmd = self.__check_torizon_inputs([_cmd])[0]
         _cmd = self.__check_docker_inputs([_cmd])[0]
@@ -847,16 +973,6 @@ class TaskRunner:
             _env = _task.options.env
             _cwd = _task.options.cwd
 
-        _depends = []
-        if _task.dependsOn is not None:
-            _depends = _task.dependsOn
-
-        # first we need to run the dependencies
-        for dep in _depends:
-            self.run_task(dep)
-
-        print(f"> Executing task: {label} <", color=Color.GREEN)
-
         _is_background = ""
         if _task.isBackground:
             _is_background = " &"
@@ -866,6 +982,8 @@ class TaskRunner:
         # FIXME:    The scape args was in the powershell implementation
         #           but when used on Python it generates weird behavior
         # _args = self.__scape_args(_args)
+        _args = self.__check_input_boxes(_args)
+        _args = self.__check_cmd_args(_args)
         _args = self.__check_workspace_folder(_args)
         _args = self.__check_torizon_inputs(_args)
         _args = self.__check_docker_inputs(_args)
@@ -874,27 +992,27 @@ class TaskRunner:
         _args = self.__check_vscode_env(_args)
         _args = self.__check_config(_args)
         _args = self.__check_workspace_folder(_args)
+
+        if _shell:
+            _args = self.__check_long_args(_args)
+
         # FIXME:    These was in the powershell implementation
         #           but when used on Python it generates weird behavior
-        # _args = self.__check_long_args(_args)
         # _args = self.__quoting_special_chars(_args)
 
         # if in gitlab ci env we need to replace the DOCKER_HOST
         if self.__gitlab_ci:
             _cmd = self.__replace_docker_host(_cmd)
 
-        # inject env
+        task_env = os.environ.copy()
+        # If TASKS_OVERRIDE_ENV is true, override the env vars with the
+        # env var values present on the task. If false, set just the env vars
+        # present on the task that doesn't already exist on the env var
         if _env is not None:
-            for env, value in _env.items():
-                if self.__override_env:
-                    __env = self.__parse_envs(env, _task)
-                    if __env:
-                        os.environ[env] = __env
-                else:
-                    if env not in os.environ:
-                        __env = self.__parse_envs(env, _task)
-                        if __env:
-                            os.environ[env] = __env
+            for env, _ in _env.items():
+                if self.__tasks_override_env == True or env not in os.environ:
+                    __parsed_env_value = self.__parse_envs(env, _task)
+                    task_env[env] = __parsed_env_value
 
         # we need to change the cwd if it's set
         if _cwd is not None:
@@ -908,10 +1026,10 @@ class TaskRunner:
         _cmd_join = f"{_cmd} {' '.join(_args)}{_is_background}"
 
         if self.__debug:
-            print(f"Command: {_task.command}", color=Color.YELLOW)
-            print(f"Args: {_task.args}", color=Color.YELLOW)
-            print(f"Parsed Args: {_args}", color=Color.YELLOW)
-            print(f"Parsed Command: {_cmd_join}", color=Color.YELLOW)
+            print(f"Command: {_task.command}", color=Color.YELLOW, flush=True)
+            print(f"Args: {_task.args}", color=Color.YELLOW, flush=True)
+            print(f"Parsed Args: {_args}", color=Color.YELLOW, flush=True)
+            print(f"Parsed Command: {_cmd_join}", color=Color.YELLOW, flush=True)
 
         # use bash to execute the VSCode tasks commands and scripts, as they
         # are written and tested in bash. Valid just for commands of shell
@@ -920,7 +1038,7 @@ class TaskRunner:
             [_cmd, *_args] if not _shell else _cmd_join,
             stdout=None,
             stderr=None,
-            env=os.environ,
+            env=task_env,
             shell=_shell,
             executable="/bin/bash" if _shell else None
         )
@@ -929,5 +1047,5 @@ class TaskRunner:
         os.chdir(_last_cwd)
 
         if _ret.returncode != 0:
-            print(f"> TASK [{label}] exited with error code [{_ret.returncode}] <", color=Color.RED)
+            print(f"> TASK [{label}] exited with error code [{_ret.returncode}] <", color=Color.RED, flush=True)
             raise RuntimeError(f"Error running task: {label}")

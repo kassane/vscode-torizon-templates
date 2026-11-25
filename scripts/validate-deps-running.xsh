@@ -10,19 +10,22 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # this script should handle the subprocess errors
-$RAISE_SUBPROC_ERROR = False
+$XONSH_SUBPROC_CMD_RAISE_ERROR = False
 
 import os
 from xonsh.procs.pipelines import CommandPipeline
+from torizon_templates_utils.network import is_in_gitlab_ci_container
 from torizon_templates_utils.errors import Error,Error_Out
 from torizon_templates_utils.colors import Color,BgColor,print
 
 $DOCKER_HOST = ""
 
-if "GITLAB_CI" in os.environ:
-    print("ℹ️ :: GITLAB_CI :: ℹ️")
-    $DOCKER_HOST = "tcp://localhost:2375"
+if is_in_gitlab_ci_container():
+    print("ℹ️ :: GITLAB_CI using docker executor :: ℹ️")
+    $DOCKER_HOST = "tcp://docker:2375"
 
 
 _env_vars_settings = [
@@ -34,6 +37,30 @@ _env_vars_settings = [
 ]
 
 print("\n⚠️ VALIDATING ENVIRONMENT\n", color=Color.YELLOW)
+
+# print the environment info for future debug
+print(f"OS:         {os.uname().sysname}")
+print(f"OS Version: {os.uname().release}")
+print(f"OS Arch:    {os.uname().machine}")
+print(f"Under WSL:  {os.getenv('WSL_DISTRO_NAME', 'false')}")
+
+# print info about the vs code
+_cmd_ret_reg: CommandPipeline
+_cmd_ret_reg = !(code --version)
+
+if _cmd_ret_reg.returncode == 0:
+    print("VS Code:")
+    print(f"{_cmd_ret_reg.out}")
+
+    # get the extension version
+    _cmd_ret_reg = !(code --list-extensions --show-versions | grep toradex.apollox-vscode)
+    if _cmd_ret_reg.returncode == 0:
+        print(f"TOR Extension:  {_cmd_ret_reg.out}")
+    else:
+        print("Extension:  Not installed")
+else:
+    print("VS Code:     None")
+
 
 _missing_env_var_settings = False
 
@@ -65,7 +92,6 @@ if _cmd_ret != 0:
     )
 
 # check if the docker container with name registry is running
-_cmd_ret_reg: CommandPipeline
 _cmd_ret_reg = !(docker ps -q -f name=registry)
 
 if _cmd_ret_reg.out == "":
@@ -75,5 +101,59 @@ if _cmd_ret_reg.out == "":
         "❌ Docker container registry is not running!\n",
         Error.ENOCONF
     )
+
+# check if the registry container is using the port 5002
+_cmd_ret_reg = !(docker ps -f name=registry --format "{{.Ports}}")
+
+if "5002->5000/tcp" not in _cmd_ret_reg.out:
+    Error_Out(
+        f"❌ Docker container registry is not using port 5002!\nMaybe there is some conflict with another container using the same name/port\n{_cmd_ret_reg.out}",
+        Error.ENOCONF
+    )
+
+# check if the binfmt is enabled
+_cmd_ret_reg = !(bash -c 'cat /proc/sys/fs/binfmt_misc/status')
+
+if "enabled" not in _cmd_ret_reg.out:
+    Error_Out(
+        "❌ binfmt is not enabled!\n",
+        Error.ENOCONF
+    )
+
+
+# check if the binfmt is registered
+def _retry_enable_binfmt(_arch: str) -> None:
+    _binfmt_to = "arm64,arm"
+
+    if _arch == "qemu-aarch64":
+        _binfmt_to = "arm64,arm"
+    elif _arch == "qemu-x86_64":
+        _binfmt_to = "amd64,arm"
+
+    docker run --rm -it --privileged tonistiigi/binfmt --install @(f"{_binfmt_to}")
+
+
+def _check_binfmt(_arch: str, _attp: int = 1) -> bool :
+    _cmd_ret_reg = !(bash -c f'cat /proc/sys/fs/binfmt_misc/{_arch}')
+    if "enabled" not in _cmd_ret_reg.out:
+        if _attp == 1:
+            print(f"⚠️  binfmt for {_arch} is not enabled, trying to enable it ...")
+            _retry_enable_binfmt(_arch)
+            return _check_binfmt(_arch, 2)
+        else:
+            Error_Out(
+                f"❌ binfmt for {_arch} is not enabled!\n",
+                Error.ENOCONF
+            )
+
+    return True
+
+
+# we need to enable different bits of binfmt based on the host architecture
+if os.uname().machine == "x86_64":
+    _check_binfmt("qemu-aarch64")
+else:
+    _check_binfmt("qemu-x86_64")
+_check_binfmt("qemu-arm")
 
 print("\n✅ Environment is valid!\n", color=Color.GREEN)

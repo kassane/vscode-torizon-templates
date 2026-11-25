@@ -6,13 +6,18 @@ ARG BASE_VERSION=4
 ARG IMAGE_ARCH=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Directory of the application inside container
 ##
 ARG APP_ROOT=
 
 
 # BUILD ------------------------------------------------------------------------
-FROM torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
+FROM --platform=linux/${HOST_ARCH} torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
 
 ARG APP_ROOT
 ARG IMAGE_ARCH
@@ -40,6 +45,8 @@ RUN rm -rf ${APP_ROOT}/build-${IMAGE_ARCH}
 RUN if [ "$IMAGE_ARCH" = "arm64" ] ; then \
         cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -Bbuild-${IMAGE_ARCH} ; \
     elif [ "$IMAGE_ARCH" = "armhf" ] ; then \
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -Bbuild-${IMAGE_ARCH} ; \
+    elif [ "$IMAGE_ARCH" = "arm" ] ; then \
         cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -Bbuild-${IMAGE_ARCH} ; \
     fi
 

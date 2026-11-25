@@ -9,8 +9,10 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
@@ -151,6 +153,9 @@ def _new_cli(args):
             Error.EINVAL
         )
 
+    # fix up the path to be relative to the /workspace dir
+    args.path = os.path.abspath(os.path.join("/workspace", args.path))
+
     # check if the path already exists
     if os.path.exists(f"{args.path}/{args.name}"):
         Error_Out(
@@ -161,6 +166,7 @@ def _new_cli(args):
     cd $SCRIPT_PATH
     xonsh ./create-from-template.xsh \
         @(f"{os.environ['HOME']}/.apollox/{args.template}") \
+        @(args.name) \
         @(args.name) \
         @(args.container_name) \
         @(args.path) \
@@ -322,17 +328,18 @@ def _target_console(args):
         print(f"🖥️ :: CONNECTING TO {target['Hostname']} :: 🖥️")
         print("")
 
-        $RAISE_SUBPROC_ERROR = False
+        $XONSH_SUBPROC_CMD_RAISE_ERROR = False
 
         sshpass \
             -p @(target['__pass__']) \
             ssh \
             -o UserKnownHostsFile=/dev/null \
             -o StrictHostKeyChecking=no \
+            -o PubkeyAuthentication=no \
             -p @(target['SshPort']) \
             @(target['Login'])@@(target['Ip']) @(args.cmd if "cmd" in args else "")
 
-        $RAISE_SUBPROC_ERROR = True
+        $XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
         # aesthetic
         print("")

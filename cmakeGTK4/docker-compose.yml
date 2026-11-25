@@ -1,9 +1,10 @@
-version: "3.9"
 services:
   __container__-debug:
     build:
       context: .
       dockerfile: Dockerfile.debug
+      platforms:
+        - linux/${IMAGE_ARCH}
     image: ${LOCAL_REGISTRY}:5002/__container__-debug:${TAG}
     ports:
       # SSH debug
@@ -20,21 +21,22 @@ services:
     device_cgroup_rules:
       # ... for tty
       - "c 4:* rmw"
-      # to allow the use of DMA heap
-      - "c 253:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      - "c 199:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-    depends_on: [
-      weston
-    ]
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    depends_on: [weston]
+    profiles:
+      - debug
 
   __container__:
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - linux/${IMAGE_ARCH}
     image: ${DOCKER_LOGIN}/__container__:${TAG}
     volumes:
       - type: bind
@@ -46,16 +48,15 @@ services:
     device_cgroup_rules:
       # ... for tty
       - "c 4:* rmw"
-      # to allow the use of DMA heap
-      - "c 253:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      - "c 199:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-    depends_on: [
-      weston
-    ]
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    depends_on: [weston]
+    profiles:
+      - release
 
   weston:
     image: torizon/weston${GPU}:4
@@ -79,11 +80,12 @@ services:
     device_cgroup_rules:
       # ... for tty
       - "c 4:* rmw"
-      # to allow the use of DMA heap
-      - "c 253:* rmw"
       # ... for /dev/input devices
       - "c 13:* rmw"
-      - "c 199:* rmw"
-      - "c 10:223 rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
+    profiles:
+      - release
+      - debug

@@ -9,14 +9,18 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
 import json
+from glob import glob
 from pathlib import Path
 from typing import TypeVar
+from datetime import date
 from xonsh.procs.pipelines import CommandPipeline
 from torizon_templates_utils.tasks import replace_tasks_input
 from torizon_templates_utils.args import get_arg_not_empty,get_optional_arg
@@ -29,10 +33,12 @@ if len(sys.argv) < 5:
 """
 Usage:
 
-    create-from-template.xsh <template_folder> <project_name> <container_name> <new_project_path> [template] [vscode] [telemetry]
+    create-from-template.xsh <template_folder> <folder_name> <project_name> <container_name> <new_project_path> [template] [vscode] [telemetry]
 
     <template_folder>   The folder where the template that will be used to create
                         the new project is located.
+
+    <folder_name>       The name of the workspace.
 
     <project_name>      The name of the new project.
 
@@ -50,6 +56,13 @@ Usage:
 
     [telemetry]         This is a bool like argument. This signals if the script
                         is being used from VS Code extension.
+
+    Exception Behavior:
+
+    --customFields      When this flag is set, the script will be used to
+                        create a new project from a template that has custom
+                        fields.
+
 """
     )
 
@@ -57,32 +70,43 @@ Usage:
 
 
 _old_cwd = os.getcwd()
+_has_custom_fields = False
+_custom_fields = []
 
 template_folder = get_arg_not_empty(1)
-project_name = get_arg_not_empty(2)
-container_name = get_arg_not_empty(3)
-new_project_path = get_arg_not_empty(4)
+folder_name = get_arg_not_empty(2)
+project_name = get_arg_not_empty(3)
+container_name = get_arg_not_empty(4)
+new_project_path = get_arg_not_empty(5)
 
 # get the template_folder name
 _template = Path(template_folder).name
 
 # optional
-template = get_optional_arg(5, _template)
-vscode = get_optional_arg(6, False)
-telemetry = get_optional_arg(7, True)
+template = get_optional_arg(6, _template)
+vscode = get_optional_arg(7, False)
+telemetry = get_optional_arg(8, True)
+
+
+if "--customFields" in sys.argv:
+    _has_custom_fields = True
+    _custom_fields = json.loads(sys.argv[sys.argv.index("--customFields") + 1])
 
 # the new_project_path need to be a full path
-new_project_path = f"{new_project_path}/{project_name}"
+new_project_path = f"{new_project_path}/{folder_name}"
+root_path = Path(new_project_path).resolve()
 
 
 print("Data:")
 print(f"\tTemplate Folder: {template_folder}")
+print(f"\tFolder Name: {folder_name}")
 print(f"\tProject Name: {project_name}")
 print(f"\tContainer Name: {container_name}")
 print(f"\tNew Project Path: {new_project_path}")
 print(f"\tTemplate: {template}")
 print(f"\tIs VS Code: {vscode}")
 print(f"\tSend Telemetry: {telemetry}")
+print(f"\tHas Custom Fields: {_has_custom_fields}")
 
 # get the template metadata from ../templates.json
 try:
@@ -112,13 +136,13 @@ if telemetry:
         import urllib.parse
 
         _query = urllib.parse.urlencode({
-            "template": template
-        }).encode("utf-8")
+            "template": template,
+            "dateTime": date.today().isoformat()
+        })
 
         _conn = http.client.HTTPConnection("ec2-3-133-114-116.us-east-2.compute.amazonaws.com")
         _conn.request(
-            "GET", "/api/template/plus",
-            body=_query
+            "GET", f"/api/Template/plus?{_query}"
         )
 
         _res = _conn.getresponse()
@@ -134,54 +158,140 @@ else:
 
 # create the copy
 print("Creating from template ...", color=Color.YELLOW)
-cp -r @(template_folder) @(new_project_path)
+if _template == "multiRoot":
+    files_to_copy = glob(template_folder + '/*') + [
+        f for f in glob(template_folder + '/.*')
+        if os.path.basename(f) not in ('.', '..')
+    ]
+    cp -r @(files_to_copy) @(new_project_path)
+else:
+    cp -r @(template_folder) @(new_project_path)
 print("✅ Folder copy done!", color=Color.GREEN)
 
 # apply the common tasks and inputs
-if "mergeCommon" not in _template_metadata or _template_metadata['mergeCommon'] != False:
-    print("Applying common tasks ...", color=Color.YELLOW)
+print("Applying common tasks ...", color=Color.YELLOW)
 
-    _f_commontasks = open(f"{template_folder}/../assets/tasks/common.json", "r")
-    _common_tasks = json.load(_f_commontasks)
-    _f_commontasks.close()
+with open(f"{template_folder}/../assets/tasks/common.json", "r") as f:
+    _common_tasks = json.load(f)
 
-    _f_commoninputs = open(f"{template_folder}/../assets/tasks/inputs.json", "r")
-    _common_inputs = json.load(_f_commoninputs)
-    _f_commoninputs.close()
+with open(f"{template_folder}/../assets/tasks/inputs.json", "r") as f:
+    _common_inputs = json.load(f)
 
-    _f_projtasks = open(f"{new_project_path}/.vscode/tasks.json", "r")
-    _proj_tasks = json.load(_f_projtasks)
-    _f_projtasks.close()
+with open(f"{new_project_path}/.vscode/tasks.json", "r") as f:
+    _proj_tasks = json.load(f)
 
-    # merge then
-    _proj_tasks["tasks"] += _common_tasks["tasks"]
-    _proj_tasks["inputs"] += _common_inputs["inputs"]
+existing_input_ids = {
+    input_.get("id") for input_ in _proj_tasks.get("inputs", []) if "id" in input_
+}
 
-    # write back
-    _f_projtasks = open(f"{new_project_path}/.vscode/tasks.json", "w+")
-    _f_projtasks.write(json.dumps(_proj_tasks, indent=4))
-    _f_projtasks.close()
+existing_task_labels = {
+    task.get("label") for task in _proj_tasks.get("tasks", []) if "label" in task
+}
 
-    print("✅ Common tasks applied!", color=Color.GREEN)
+merge_config = _template_metadata.get("mergeCommon", {})
+task_labels_to_merge = merge_config.get("tasks", "all")
+input_ids_to_merge = merge_config.get("inputs", "all")
 
-# we have to also copy the scripts
-cp -r @(template_folder)/../scripts/check-deps.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/run-container-if-not-exists.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/share-wsl-ports.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/create-docker-compose-production.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/torizon-packages.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/.vscode/tasks.xsh @(new_project_path)/.vscode/
-cp -r @(template_folder)/../scripts/bash/tcb-env-setup.sh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/torizon-io.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/check-ci-env.xsh @(new_project_path)/.conf/
-cp -r @(template_folder)/../scripts/validate-deps-running.xsh @(new_project_path)/.conf/
+def should_merge(item_label, allowed):
+    return allowed == "all" or "all" in allowed or item_label in allowed
+
+# Check if template-specific tasks are on the template's tasks.json
+# If so, we need to exclude them from the merge list (that is, not add the ones that are on common.json)
+template_specific_tasks = ["template-specific-initial-task", "template-specific-final-task"]
+existing_template_tasks = {task.get("label") for task in _proj_tasks.get("tasks", [])}
+tasks_to_exclude = [task for task in template_specific_tasks if task in existing_template_tasks]
+
+if tasks_to_exclude:
+    if task_labels_to_merge == "all":
+        # Convert "all" to explicit list
+        task_labels_to_merge = [task.get("label") for task in _common_tasks.get("tasks", [])]
+    # Remove tasks listed in tasks_to_exclude
+    task_labels_to_merge = [label for label in task_labels_to_merge if label not in tasks_to_exclude]
+
+merged_tasks = [
+    task for task in _common_tasks.get("tasks", [])
+    if should_merge(task.get("label"), task_labels_to_merge)
+    and task.get("label") not in existing_task_labels
+]
+
+merged_inputs = [
+    input_ for input_ in _common_inputs.get("inputs", [])
+    if should_merge(input_.get("id"), input_ids_to_merge)
+    and input_.get("id") not in existing_input_ids
+]
+
+_proj_tasks.setdefault("tasks", []).extend(merged_tasks)
+_proj_tasks.setdefault("inputs", []).extend(merged_inputs)
+
+with open(f"{new_project_path}/.vscode/tasks.json", "w") as f:
+    f.write(json.dumps(_proj_tasks, indent=4))
+
+print("✅ Common tasks applied!", color=Color.GREEN)
 
 
-template_name = os.path.basename(template_folder)
+print("Applying common settings ...", color=Color.YELLOW)
+
+code_workspace_config = _template_metadata.get("codeWorkspace", False)
+common_settings_path = f"{template_folder}/../assets/settings/common.json"
+if not code_workspace_config:
+    project_settings_path = f"{new_project_path}/.vscode/settings.json"
+else:
+    project_settings_path = f"{new_project_path}/multiRoot.code-workspace"
+
+try:
+    with open(common_settings_path, "r") as f:
+        _common_settings = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError("Missing common.json file.")
+
+try:
+    with open(project_settings_path, "r") as f:
+        _proj_settings = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError("Missing settings.json or .code-workspace.")
+
+# Apply only keys that don't already exist in project settings
+if code_workspace_config:
+    _proj_settings.setdefault("settings", {})
+    for key, value in _common_settings.items():
+        _proj_settings["settings"].setdefault(key, value)
+else:
+    for key, value in _common_settings.items():
+        _proj_settings.setdefault(key, value)
+
+with open(project_settings_path, "w") as f:
+    json.dump(_proj_settings, f, indent=4)
+
+print("✅ Common settings applied!", color=Color.GREEN)
+
+# If scripts not specified, copy common scripts
+template_scripts = _template_metadata.get("scripts")
+if template_scripts is None:
+    # we have to also copy the scripts
+    cp -r @(template_folder)/../scripts/check-deps.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/run-container-if-not-exists.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/share-wsl-ports.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/docker-login.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/create-docker-compose-production.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/torizon-packages.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/.vscode/tasks.xsh @(new_project_path)/.vscode/
+    cp -r @(template_folder)/../scripts/bash/tcb-env-setup.sh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/torizon-io.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/check-ci-env.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/validate-deps-running.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/apply-ci-settings-file.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/validate-json.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/service-check.xsh @(new_project_path)/.conf/
+    cp -r @(template_folder)/../scripts/spin-up-down-registry.xsh @(new_project_path)/.conf/
+    if _template != "tcb":
+        cp -r @(template_folder)/../scripts/compose-rules.xsh @(new_project_path)/.conf/
+else:
+    for script in template_scripts:
+        cp -r @(os.path.join(template_folder, "..", "scripts", script)) @(os.path.join(new_project_path, ".conf"))
 
 # torizonPackages.json fixups
-# TCB template does not use it
-if template_name != "tcb":
+ignore_torizon_packages = _template_metadata.get("ignoreTorizonPackages", False)
+if not ignore_torizon_packages:
     _tor_package_json_file = open(f"{template_folder}/../assets/json/torizonPackages.json", "r")
     _tor_package_json = json.load(_tor_package_json_file)
     _tor_package_json_file.close()
@@ -240,6 +350,16 @@ if not os.path.exists(f"{new_project_path}/.github"):
 if not os.path.exists(f"{new_project_path}/.gitlab-ci.yml"):
     cp -r @(template_folder)/../assets/gitlab/.gitlab-ci.yml @(new_project_path)/.gitlab-ci.yml
 
+
+# copy the ci-vars.json if not exists
+if not os.path.exists(f"{new_project_path}/.conf/ci-vars.json"):
+    cp -r @(template_folder)/../assets/conf/ci-vars.json @(new_project_path)/.conf/ci-vars.json
+
+
+# copy the compose-rules.json if not exists
+if _template != "tcb" and not os.path.exists(f"{new_project_path}/.conf/compose-rules.json"):
+    cp -r @(template_folder)/../assets/conf/compose-rules.json @(new_project_path)/.conf/compose-rules.json
+
 # create a metadata.json to store
 # template name
 # container name
@@ -248,7 +368,9 @@ _proj_metadata_json = {
     "projectName": project_name,
     "templateName": template,
     "containerName": container_name,
-    "torizonOSMajor": _metadata["TorizonOSMajor"]
+    "torizonOSMajor": _metadata["TorizonOSMajor"],
+    "hasCustomFields": _has_custom_fields,
+    "customFields": _custom_fields
 }
 
 # save the metadata json file
@@ -260,42 +382,61 @@ print("✅ Scripts copy done", color=Color.GREEN)
 
 os.chdir(new_project_path)
 
+def is_nested_workspace_folder(folder: Path) -> bool:
+    return (folder / '.conf' / 'metadata.json').exists()
 
-# change the folders that is needed
+def walk_workspace(path: Path):
+    for item in path.iterdir():
+        if item.is_dir():
+            if is_nested_workspace_folder(item):
+                continue
+            yield from walk_workspace(item)
+        yield item
+
 print("Renaming folders ...", color=Color.YELLOW)
+root_path = Path(new_project_path).resolve()
 
-for item in Path('.').rglob('*__change__*'):
-    print(item)
-    new_name = str(item).replace('__change__', project_name)
-    item.rename(new_name)
+for item in walk_workspace(root_path):
+    # Rename folders and files containing __change__
+    if '__change__' in item.name:
+        renamed = item.with_name(item.name.replace('__change__', project_name))
+        item.rename(renamed)
+        item = renamed
 
-print("✅ Project folders ok", color=Color.GREEN)
-
-
-# change the contents
-print("Renaming file contents ...", color=Color.YELLOW)
-
-for item in Path('.').rglob('*'):
+    # If it's a file, process contents
     if item.is_file():
-        mime_type: CommandPipeline
+        if "id_rsa" in str(item) and "id_rsa.pub" not in str(item):
+            os.chmod(item, 0o400)
+            continue
+
         mime_type = !(file --mime-encoding @(item))
+        if "binary" in mime_type.out:
+            continue
 
-        if "binary" not in mime_type.out:
-            if "id_rsa" not in str(item):
-                with open(item, 'r') as file:
-                    content = file.read()
-                content = content.replace("__change__", project_name)
+        if "id_rsa" not in str(item) and ".conf/update.json" not in str(item):
+            with open(item, 'r') as file:
+                content = file.read()
+
+            content = content.replace("__change__", project_name)
+
+            if not _has_custom_fields:
                 content = content.replace("__container__", container_name)
-                content = content.replace("__home__", os.environ['HOME'])
-                content = content.replace("__templateFolder__", template)
-                with open(item, 'w') as file:
-                    file.write(content)
-            elif "id_rsa.pub" not in str(item):
-                os.chmod(item, 0o400)
+            else:
+                for _field in _custom_fields:
+                    content = content.replace(f"__{_field['id']}__", _field['value'])
+
+            content = content.replace("__home__", os.environ['HOME'])
+            content = content.replace("__templateFolder__", template)
+
+            with open(item, 'w') as file:
+                file.write(content)
+
+print("✅ Project folders and contents renamed", color=Color.GREEN)
 
 
-# the project updater does not need to change the contents
+# remove-dangling-images and project-updater don't require changing contents
 cp -r @(template_folder)/../scripts/project-updater.xsh @(new_project_path)/.conf/
+cp -r @(template_folder)/../scripts/remove-dangling-images.xsh @(new_project_path)/.conf/
 
 # if from vs code we need to replace the inputs
 if vscode != False:

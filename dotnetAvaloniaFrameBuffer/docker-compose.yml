@@ -1,9 +1,11 @@
 services:
   __container__-debug:
     build:
-        context: .
-        dockerfile: Dockerfile.debug
-    image: ${LOCAL_REGISTRY}:5002/__container__:${TAG}
+      context: .
+      dockerfile: Dockerfile.debug
+      platforms:
+        - linux/${IMAGE_ARCH}
+    image: ${LOCAL_REGISTRY}:5002/__container__-debug:${TAG}
     # Required to get udev events from host udevd via netlink
     network_mode: host
     volumes:
@@ -26,14 +28,19 @@ services:
       - "c 13:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-      - "c 199:* rmw"
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
       # ... for /dev/fb0
       - "c 29:* rmw"
+    profiles:
+      - debug
 
   __container__:
     build:
-        context: .
-        dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/${IMAGE_ARCH}
     image: ${DOCKER_LOGIN}/__container__:${TAG}
     # Required to get udev events from host udevd via netlink
     network_mode: host
@@ -57,6 +64,9 @@ services:
       - "c 13:* rmw"
       # ... for /dev/dri devices
       - "c 226:* rmw"
-      - "c 199:* rmw"
+      # ... for /dev/uinput
+      - "c 10:223 rmw"
       # ... for /dev/fb0
       - "c 29:* rmw"
+    profiles:
+      - release

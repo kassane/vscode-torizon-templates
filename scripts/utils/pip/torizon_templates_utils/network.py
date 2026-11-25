@@ -6,14 +6,14 @@ import subprocess
 
 def get_host_ip():
     if 'WSL_DISTRO_NAME' in os.environ and os.environ['WSL_DISTRO_NAME'] != '':
-        command = ["/mnt/c/Windows/System32/Wbem/WMIC.exe", "NICCONFIG", "WHERE", "IPEnabled=true", "GET", "IPAddress"]
+        command = ["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", "-c", '(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias (Get-NetRoute -DestinationPrefix "0.0.0.0/0").InterfaceAlias).IPAddress']
 
         # if inside a container we need to run the command in the host
         if "APOLLOX_CONTAINER" in os.environ:
             command = [
                 "sudo", "nsenter", "-t", "1", "-m", "-u", "-n", "-i",
                 "--",
-                "/mnt/c/Windows/System32/Wbem/WMIC.exe", "NICCONFIG", "WHERE", "IPEnabled=true", "GET", "IPAddress"
+                "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", "-c", '(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias (Get-NetRoute -DestinationPrefix "0.0.0.0/0").InterfaceAlias).IPAddress'
             ]
 
         result = subprocess.run(command, capture_output=True, text=True)
@@ -33,3 +33,12 @@ def get_host_ip():
 
         result = subprocess.run(command, capture_output=True, text=True)
         return result.stdout.split()[0]
+
+
+def is_in_docker_container():
+    return os.path.exists("/.dockerenv")
+
+
+def is_in_gitlab_ci_container():
+    return "GITLAB_CI" in os.environ and is_in_docker_container()
+

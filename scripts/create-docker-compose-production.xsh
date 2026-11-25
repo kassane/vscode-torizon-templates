@@ -10,14 +10,17 @@
 
 # use the xonsh environment to update the OS environment
 $UPDATE_OS_ENVIRON = True
+# Get the full log of error
+$XONSH_SHOW_TRACEBACK = True
 # always return if a cmd fails
-$RAISE_SUBPROC_ERROR = True
+$XONSH_SUBPROC_CMD_RAISE_ERROR = True
 
 import os
 import sys
 import json
 import yaml
 import xonsh.environ as xenv
+from torizon_templates_utils.network import is_in_gitlab_ci_container
 from torizon_templates_utils import debug
 from torizon_templates_utils.args import get_optional_arg,get_arg_iterative
 from torizon_templates_utils.errors import Error,Error_Out
@@ -27,11 +30,15 @@ from torizon_templates_utils.colors import Color,BgColor,print
 # debug.vscode_prepare()
 # debug.breakpoint()
 
+class NoAliasDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data):
+        return True
+
 $DOCKER_HOST = ""
 
-if "GITLAB_CI" in os.environ:
-    print("ℹ️ :: GITLAB_CI :: ℹ️")
-    $DOCKER_HOST = "tcp://localhost:2375"
+if is_in_gitlab_ci_container():
+    print("ℹ️ :: GITLAB_CI using docker executor :: ℹ️")
+    $DOCKER_HOST = "tcp://docker:2375"
 
 _iterative = False
 if "TASK_ITERATIVE" in os.environ:
@@ -45,29 +52,15 @@ _compo_file_path = get_arg_iterative(
     default=None,
     iterative=_iterative
 )
-_docker_login = get_arg_iterative(
-    index=2,
-    prompt="Image repository: ",
-    default_type=str,
-    default=None,
-    iterative=_iterative
-)
 _tag = get_arg_iterative(
-    index=3,
+    index=2,
     prompt="Image tag: ",
     default_type=str,
     default=None,
     iterative=_iterative
 )
-_registry = get_arg_iterative(
-    index=4,
-    prompt="Docker registry: ",
-    default_type=str,
-    default="registry-1.docker.io",
-    iterative=_iterative
-)
 _image_name = get_arg_iterative(
-    index=5,
+    index=3,
     prompt="Image name: ",
     default_type=str,
     default=None,
@@ -75,16 +68,33 @@ _image_name = get_arg_iterative(
 )
 
 # optional
-_gpu = get_optional_arg(6, "")
+_gpu = get_optional_arg(4, "")
 
 # check env vars
-if "DOCKER_PSSWD" not in os.environ:
+if "DOCKER_PASSWORD" not in os.environ:
     Error_Out(
-        "❌ DOCKER_PSSWD not set",
+        "❌ DOCKER_PASSWORD not set",
         Error.ENOCONF
     )
 else:
-    _docker_psswd = os.environ["DOCKER_PSSWD"]
+    _docker_password = os.environ["DOCKER_PASSWORD"]
+
+if "DOCKER_LOGIN" not in os.environ:
+    Error_Out(
+        "❌ DOCKER_LOGIN not set",
+        Error.ENOCONF
+    )
+else:
+    _docker_login = os.environ["DOCKER_LOGIN"]
+
+if "DOCKER_REGISTRY" not in os.environ:
+    Error_Out(
+        "❌ DOCKER_REGISTRY not set",
+        Error.ENOCONF
+    )
+else:
+    _docker_registry = os.environ["DOCKER_REGISTRY"]
+
 
 if "TORIZON_ARCH" not in os.environ:
     Error_Out(
@@ -113,7 +123,7 @@ if _torizon_arch == "aarch64":
     _torizon_arch = "arm64"
 elif _torizon_arch == "armv7":
     _torizon_arch = "arm"
-elif _torizon_arch == "arm":
+elif _torizon_arch == "armv7l":
     _torizon_arch = "arm"
 elif _torizon_arch == "armhf":
     _torizon_arch = "arm"
@@ -143,22 +153,23 @@ _local_registry = _settings["host_ip"]
 os.environ["LOCAL_REGISTRY"] = f"{_local_registry}:5002"
 os.environ["TAG"] = _tag
 
-if _registry == "registry-1.docker.io":
+if _docker_registry == "registry-1.docker.io" or _docker_registry == "":
     os.environ["DOCKER_LOGIN"] = _docker_login
 else:
-    os.environ["DOCKER_LOGIN"] = f"{_registry}/{_docker_login}"
+    os.environ["DOCKER_LOGIN"] = f"{_docker_registry}/{_docker_login}"
 
 # make sure to have binfmt
-print("Executing binfmt ...")
-docker run --rm --privileged -it torizon/binfmt:latest
+xonsh ./.vscode/tasks.xsh run run-torizon-binfmt
+
+# xonsh env works in a very weird way, so we need to merge the envs
+xos = xenv.Env(os.environ)
+__xonsh__.env = xos
+xonsh ./.vscode/tasks.xsh run template-specific-initial-task
 
 # start to build the image
 cd @(_compo_file_path)
 print(f"Rebuilding {os.environ['DOCKER_LOGIN']}/{_image_name}:{_tag} ...")
 
-# xonsh env works in a very weird way, so we need to merge the envs
-xos = xenv.Env(os.environ)
-__xonsh__.env = xos
 
 # run the build-container-torizon-release-<arch> but without override the env
 $TASKS_OVERRIDE_ENV = False
@@ -171,7 +182,8 @@ print("✅ Image rebuild and tagged", color=Color.GREEN)
 # push it
 print(f"Pushing {os.environ['DOCKER_LOGIN']}/{_image_name}:{_tag} ...")
 
-echo @(_docker_psswd) | docker login --username @(_docker_login) --password-stdin
+xonsh ./.vscode/tasks.xsh run docker-login
+
 docker push @(f"{os.environ['DOCKER_LOGIN']}/{_image_name}:{_tag}")
 
 print("✅ Image pushed", color=Color.GREEN)
@@ -216,6 +228,15 @@ for key in _remove_keys:
 
 print("✅ Services cleaned", color=Color.GREEN)
 
+print("Removing profiles ...")
+
+for service in _prod_keys:
+    _service = _compose_services[service]
+    if "profiles" in _service:
+        _service.pop("profiles")
+
+print("✅ Profiles removed", color=Color.GREEN)
+
 # replace the env  variables
 print("Replacing variables ...")
 
@@ -231,13 +252,28 @@ for service in _prod_keys:
 
 print("✅ Variables replaced", color=Color.GREEN)
 
+print("Removing base services ...")
+
+for key in [k for k in _compose_obj if k.startswith("x-")]:
+    _compose_obj.pop(key)
+
+print("✅ Base services removed", color=Color.GREEN)
+
 # write the object back to a file
 _f_ref = open(f"{_compo_file_path}/docker-compose.prod.yml", "w")
 yaml.dump(
     _compose_obj,
     _f_ref,
-    indent=2
+    indent=2,
+    Dumper=NoAliasDumper
 )
 _f_ref.close()
 
 print("✅ docker-compose.prod.yml generated", color=Color.GREEN)
+
+# run template-specific-final-task
+# xonsh env works in a very weird way, so we need to merge the envs
+$TASKS_OVERRIDE_ENV = True
+xos = xenv.Env(os.environ)
+__xonsh__.env = xos
+xonsh ./.vscode/tasks.xsh run template-specific-final-task

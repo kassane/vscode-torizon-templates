@@ -2,23 +2,24 @@
 
 This repository maintains the templates used in conjunction with the [VS Code Torizon Integrated Development Environment Extension](https://developer.toradex.com/torizon/application-development/ide-extension/). Focusing in the VS Code for automation between the development environment for remote debug, remote deploy of containerized applications for Toradex TorizonCore easy-to-use Industrial Linux Software Platform.
 
-## Toradex Supported Templates
+## Torizon Supported Templates
 
-> ℹ️ **Toradex Supported Templates** are templates with development stacks commonly used by customers of the Torizon platform and are maintained by the Torizon team at Toradex.
+> ℹ️ **Torizon Supported Templates** are templates with development stacks commonly used by customers of the Torizon platform and are maintained by the Torizon team at Toradex.
 
 > ⚠️ Support for **x86-64** architectures are experimental.
 
 | TEMPLATE | DESCRIPTION | RUNTIME | LANGUAGE | HW ARCH | FOLDER |
 | -------- | ----------- | ------- | -------- | ------- | ------ |
+| ![](https://github.com/torizon/vscode-torizon-templates/blob/dev/assets/img/chromium.png?raw=true) | Chromium Web App | v8 | JavaScript | <img src="assets/img/arm32.png" width=70 /> &nbsp; <img src="assets/img/arm64.png" width=70 /> &nbsp; <img src="assets/img/x8664.png" width=70 />  | [chromiumWebApp](./chromiumWebApp) |
 | ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/cppconsole.png?raw=true) | C++ Makefile Console Application | libc | C++ | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />  | [cppConsole](./cppConsole) |
 | ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/cmakeconsole.png?raw=true) | C++ CMake Console Application | libc | C++ | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> | [cmakeConsole](./cmakeConsole) |
 | ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/qt6qml.png?raw=true) | C++ Qt 6 QML Application | Qt 6 | C++ / QML | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />   | [cppQML](./cppQML) |
-| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/dotnetconsole.png?raw=true) | .NET 8 C# Console Application | .NET 8.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />   | [dotnetConsole](./dotnetConsole) |
-| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/aspnetblazor.png?raw=true) | ASP.NET 8 Blazor Application | ASP.NET 8.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />   | [aspnetBlazor](./aspnetBlazor) |
+| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/dotnetconsole.png?raw=true) | .NET 10 C# Console Application | .NET 10.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />  <img src="assets/img/x8664.png" width=70 />  | [dotnetConsole](./dotnetConsole) |
+| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/aspnetblazor.png?raw=true) | ASP.NET 10 Blazor Application | ASP.NET 10.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 />   | [aspnetBlazor](./aspnetBlazor) |
 | ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/python3console.png?raw=true) | Python 3 Console Application | Python 3 | Python 3 | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> | [python3Console](./python3Console) |
-| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/avaloniagtk.png?raw=true) | .NET 8 C# Avalonia GTK MVVM | .NET 8.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> <img src="assets/img/x8664.png" width=70 /> | [dotnetAvalonia](./dotnetAvalonia) |
-| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/avaloniafbdrm.png?raw=true) | .NET 8 C# Avalonia Frame Buffer DRM | .NET 8.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> <img src="assets/img/x8664.png" width=70 /> | [dotnetAvaloniaFrameBuffer](./dotnetAvaloniaFrameBuffer) |
-| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/genericTemplate.png?raw=true) | Generic Template (Without Language) | None | None | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> <img src="assets/img/x8664.png" width=70 /> | [genericTemplate](./genericTemplate) |
+| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/avaloniagtk.png?raw=true) | .NET 10 C# Avalonia GTK MVVM | .NET 10.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> | [dotnetAvalonia](./dotnetAvalonia) |
+| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/avaloniafbdrm.png?raw=true) | .NET 10 C# Avalonia Frame Buffer DRM | .NET 10.0 | C# | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> <img src="assets/img/x8664.png" width=70 /> | [dotnetAvaloniaFrameBuffer](./dotnetAvaloniaFrameBuffer) |
+| ![](https://raw.githubusercontent.com/toradex/vscode-torizon-templates-documentation/refs/heads/main/thumbnails/genericTemplate.png?raw=true) | Generic Template | OCI | Dockerfile | <img src="assets/img/arm32.png" width=70 /> <img src="assets/img/arm64.png" width=70 /> <img src="assets/img/x8664.png" width=70 /> | [genericTemplate](./genericTemplate) |
 
 # Partner Templates
 

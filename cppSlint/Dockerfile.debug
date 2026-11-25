@@ -32,7 +32,7 @@ ARG GPU=
 ##
 # Slint Version
 ##
-ARG SLINT_VERSION=1.9.2
+ARG SLINT_VERSION=1.18.1
 
 ##
 # Deploy Step
@@ -57,6 +57,7 @@ RUN apt-get -q -y update && \
         if [ "${GPU}" = "-vivante" ] || [ "${GPU}" = "-imx8" ]; then \
             apt-get -q -y install \
             imx-gpu-viv-wayland-dev \
+            libgles-dev \
         ; else \
             apt-get -q -y install \
             libgl1 \

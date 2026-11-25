@@ -1,7 +1,8 @@
 {
     "recommendations": [
         "ms-vscode.cpptools",
-        "twxs.cmake",
-        "seanwu.vscode-qt-for-python"
+        "theqtcompany.qt-core",
+        "theqtcompany.qt-qml",
+        "twxs.cmake"
     ]
 }

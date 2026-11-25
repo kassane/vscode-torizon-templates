@@ -309,6 +309,40 @@
             }
         },
         {
+            "label": "start-gdb-server-remote-amd64",
+            "detail": "Deploy and run the application for amd64 on the remote\ntarget by using gdbserver.",
+            "command": "ssh",
+            "type": "process",
+            "args": [
+                "-p",
+                "${config:torizon_debug_ssh_port}",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "${config:torizon_run_as}@${config:torizon_ip}",
+                "cd ${config:torizon_app_root} && export QT_LOGGING_RULES=\"*.debug=true; qt.*.debug=false\" && gdbserver localhost:${config:torizon_debug_port1} __change__ -qmljsdebugger=port:${config:torizon_debug_port2},block,services:DebugMessages,QmlDebugger,V8Debugger,QmlInspector,DebugTranslation"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "kill-redirect-qml-debugger",
+                "deploy-torizon-amd64",
+                "redirect-qml-debugger"
+            ],
+            "problemMatcher": "$msCompile",
+            "icon": {
+                "id": "debug-alt-small",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
             "label": "build-configure-local",
             "hide": true,
             "command": "cmake",
@@ -363,19 +397,70 @@
         {
             "label": "clean-local",
             "detail": "Clean the local application build directory.",
-            "command": "cmake",
+            "command": "rm",
             "type": "shell",
             "args": [
-                "--build",
-                "build-local",
-                "--target",
-                "clean"
+                "-rf",
+                "build-local"
             ],
             "problemMatcher": [
                 "$gcc"
             ],
             "icon": {
                 "id": "trash",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "build-container-image-sdk-arm64-with-auth-conf",
+            "detail": "",
+            "hide": true,
+            "command": "DOCKER_HOST=",
+            "type": "shell",
+            "options": {
+                "env": {
+                    "QT_LICENSE_LOGIN": "${config:qt_license_login}",
+                    "QT_LICENSE_PASSWORD": "${config:qt_license_password}"
+                }
+            },
+            "args": [
+                "docker",
+                "build",
+                "--pull",
+                "--secret",
+                "id=qt-login,env=QT_LICENSE_LOGIN",
+                "--secret",
+                "id=qt-password,env=QT_LICENSE_PASSWORD",
+                "-f",
+                "${workspaceFolder}/Dockerfile.sdk",
+                "${workspaceFolder}",
+                "-t",
+                "cross-toolchain-arm64-__container__",
+                "--build-arg",
+                "IMAGE_ARCH=arm64",
+                "--build-arg",
+                "GPU=${config:torizon_gpu}",
+                "--build-arg",
+                "APP_ROOT=${config:torizon_app_root}",
+                "--build-arg",
+                "HOST_ARCH=${config:host_arch}"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "apply-torizon-packages-arm64"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "icon": {
+                "id": "tools",
                 "color": "terminal.ansiYellow"
             },
             "presentation": {
@@ -395,10 +480,14 @@
                 "docker",
                 "run",
                 "--rm",
+                "-e",
+                "IMAGE_ARCH=arm64",
+                "-e",
+                "GPU=${config:torizon_gpu}",
                 "-v",
                 "${workspaceFolder}:${config:torizon_app_root}",
                 "cross-toolchain-arm64-__container__",
-                "cmake",
+                "/usr/local/bin/qt-cmake",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++",
                 "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc",
@@ -409,7 +498,7 @@
             ],
             "dependsOrder": "sequence",
             "dependsOn": [
-                "build-container-image-sdk-arm64"
+                "build-container-image-sdk-arm64-with-auth-conf"
             ],
             "icon": {
                 "id": "tools",
@@ -470,11 +559,9 @@
                 "-v",
                 "${workspaceFolder}:${config:torizon_app_root}",
                 "cross-toolchain-arm64-__container__",
-                "cmake",
-                "--build",
-                "build-arm64",
-                "--target",
-                "clean"
+                "rm",
+                "-rf",
+                "build-arm64"
             ],
             "problemMatcher": [
                 "$gcc"
@@ -517,8 +604,9 @@
                 "build-debug-arm64",
                 "build-container-torizon-debug-arm64",
                 "push-container-torizon-debug-arm64",
-                "pull-container-torizon-debug-arm64",
-                "run-container-torizon-debug-arm64"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -618,11 +706,9 @@
                 "-v",
                 "${workspaceFolder}:${config:torizon_app_root}",
                 "cross-toolchain-arm-__container__",
-                "cmake",
-                "--build",
-                "build-arm",
-                "--target",
-                "clean"
+                "rm",
+                "-rf",
+                "build-arm"
             ],
             "problemMatcher": [
                 "$gcc"
@@ -665,8 +751,211 @@
                 "build-debug-arm",
                 "build-container-torizon-debug-arm",
                 "push-container-torizon-debug-arm",
-                "pull-container-torizon-debug-arm",
-                "run-container-torizon-debug-arm"
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "ssh-check"
+            ],
+            "dependsOrder": "sequence",
+            "problemMatcher": "$msCompile",
+            "icon": {
+                "id": "debug-alt",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "build-container-image-sdk-amd64-with-auth-conf",
+            "detail": "",
+            "hide": true,
+            "command": "DOCKER_HOST=",
+            "type": "shell",
+            "options": {
+                "env": {
+                    "QT_LICENSE_LOGIN": "${config:qt_license_login}",
+                    "QT_LICENSE_PASSWORD": "${config:qt_license_password}"
+                }
+            },
+            "args": [
+                "docker",
+                "build",
+                "--pull",
+                "--secret",
+                "id=qt-login,env=QT_LICENSE_LOGIN",
+                "--secret",
+                "id=qt-password,env=QT_LICENSE_PASSWORD",
+                "-f",
+                "${workspaceFolder}/Dockerfile.sdk",
+                "${workspaceFolder}",
+                "-t",
+                "cross-toolchain-amd64-__container__",
+                "--build-arg",
+                "IMAGE_ARCH=amd64",
+                "--build-arg",
+                "GPU=${config:torizon_gpu}",
+                "--build-arg",
+                "APP_ROOT=${config:torizon_app_root}",
+                "--build-arg",
+                "HOST_ARCH=${config:host_arch}"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "apply-torizon-packages-amd64"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "icon": {
+                "id": "tools",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "build-configure-amd64",
+            "hide": true,
+            "command": "DOCKER_HOST=",
+            "type": "shell",
+            "args": [
+                "docker",
+                "run",
+                "--rm",
+                "-e",
+                "IMAGE_ARCH=amd64",
+                "-e",
+                "GPU=${config:torizon_gpu}",
+                "-v",
+                "${workspaceFolder}:${config:torizon_app_root}",
+                "cross-toolchain-amd64-__container__",
+                "/usr/local/bin/qt-cmake",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-Bbuild-amd64"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build-container-image-sdk-amd64-with-auth-conf"
+            ],
+            "icon": {
+                "id": "tools",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "build-debug-amd64",
+            "detail": "Build a debug version of the application for amd64 using\nthe toolchain from the SDK container.",
+            "command": "DOCKER_HOST=",
+            "type": "shell",
+            "args": [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                "${workspaceFolder}:${config:torizon_app_root}",
+                "cross-toolchain-amd64-__container__",
+                "cmake",
+                "--build",
+                "build-amd64"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build-configure-amd64"
+            ],
+            "icon": {
+                "id": "tools",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "clean-amd64",
+            "detail": "Clean the build folder for amd64 using the\ncontainer SDK toolchain.",
+            "command": "DOCKER_HOST=",
+            "type": "shell",
+            "args": [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                "${workspaceFolder}:${config:torizon_app_root}",
+                "cross-toolchain-amd64-__container__",
+                "rm",
+                "-rf",
+                "build-amd64"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build-container-image-sdk-amd64"
+            ],
+            "icon": {
+                "id": "trash",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "deploy-torizon-amd64",
+            "detail": "",
+            "hide": true,
+            "command": "rsync",
+            "type": "process",
+            "args": [
+                "-P",
+                "-av",
+                "-e",
+                "ssh -p ${config:torizon_debug_ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+                "${workspaceFolder}/build-amd64/bin/",
+                "${config:torizon_run_as}@${config:torizon_ip}:${config:torizon_app_root}"
+            ],
+            "dependsOn": [
+                "validate-settings",
+                "validate-arch-amd64",
+                "copy-docker-compose",
+                "pre-cleanup",
+                "build-debug-amd64",
+                "build-container-torizon-debug-amd64",
+                "push-container-torizon-debug-amd64",
+                "pull-container-torizon-debug",
+                "run-container-torizon-debug",
+                "ssh-check"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": "$msCompile",
@@ -785,6 +1074,41 @@
             },
             "presentation": {
                 "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "group": "build-execution"
+            }
+        },
+        {
+            "label": "qt-enterprise-fill-license-login-password",
+            "detail": "Generate qt-feed-auth.conf from login and password stored in settings",
+            "command": "bash",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "QT_LICENSE_LOGIN": "${command:qt_license_login.__change__}",
+                    "QT_LICENSE_PASSWORD": "${command:qt_license_password.__change__}",
+                    "QT_CACHE_BUSTER_FILE": "${workspaceFolder}/.qt/qt-cache-buster",
+                    "QT_ENTERPRISE_STATE_FILE": "${workspaceFolder}/.conf/qt6-enterprise/qt-credentials.state"
+                }
+            },
+            "args": [
+                "${workspaceFolder}/.qt/qt-cache-buster-update.sh"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "dependsOrder": "sequence",
+            "dependsOn": [
+            ],
+            "icon": {
+                "id": "notebook",
+                "color": "terminal.ansiYellow"
+            },
+            "presentation": {
+                "echo": false,
                 "reveal": "always",
                 "focus": true,
                 "panel": "shared",

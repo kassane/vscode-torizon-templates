@@ -43,12 +43,16 @@
                 {
                     "name": "QT_LOGGING_RULES",
                     "value": "*.debug=true; qt.*.debug=false"
+                },
+                {
+                    "name": "QT_QPA_PLATFORM",
+                    "value": "wayland"
                 }
             ],
             "externalConsole": false,
             "internalConsoleOptions": "openOnSessionStart",
             "logging": {
-                "engineLogging": true
+                "engineLogging": false
             },
             "sourceFileMap": {
                 "${config:torizon_app_root}": "${workspaceFolder}"
@@ -104,7 +108,7 @@
             "externalConsole": false,
             "internalConsoleOptions": "openOnSessionStart",
             "logging": {
-                "engineLogging": true
+                "engineLogging": false
             },
             "sourceFileMap": {
                 "${config:torizon_app_root}": "${workspaceFolder}"
@@ -160,7 +164,7 @@
             "externalConsole": false,
             "internalConsoleOptions": "openOnSessionStart",
             "logging": {
-                "engineLogging": true
+                "engineLogging": false
             },
             "sourceFileMap": {
                 "${config:torizon_app_root}": "${workspaceFolder}"

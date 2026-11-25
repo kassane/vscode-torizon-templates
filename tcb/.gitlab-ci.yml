@@ -1,7 +1,7 @@
-image: docker:latest
+image: docker
 
 services:
-    - docker:dind
+  - docker:dind
 
 variables:
   # This should be set by docker image already, just to be sure...
@@ -10,78 +10,75 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: 1
+  TASKS_DISABLE_INTERACTIVE_INPUT: "True"
+  TASKS_OVERRIDE_ENV: "False"
+
+  TORIZON_CI_SETTINGS_FILE:
+    value: ".vscode/settings.json"
+    description: "Path to the settings file relative to the project root."
 
 stages:
-  - build
-  - platform
+  - setup
+  - build_and_push
+  - deploy
 
-tcb-build:
-  stage: build
+
+initial_setup:
+  stage: setup
   image:
-    name: torizonextras/xonsh-wrapper:dev
+    name: torizonextras/torizon-dev:dev
+    docker:
+      user: root
+    entrypoint: [""]
+  script:
+    - echo $CI_PROJECT_DIR > abs-path
+    - cat abs-path
+    - xonsh ./.conf/validate-json.xsh
+    - xonsh ./.vscode/tasks.xsh run validate-pipeline-settings
+    - xonsh ./.conf/apply-ci-settings-file.xsh
+    - cat $GITLAB_ENV > build.env
+    - xonsh ./.vscode/tasks.xsh run tcb-setup
 
-  variables:
-    TASKS_ITERATIVE: "False"
+  artifacts:
+    paths:
+      - abs-path
+    reports:
+      dotenv: build.env
 
-  script: |
-    echo '
 
-      ./.vscode/tasks.ps1 run tcb-setup
-      ./.vscode/tasks.ps1 run tcb-build
+build_and_push:
+  stage: build_and_push
+  image:
+    name: torizonextras/torizon-dev:dev
+    docker:
+      user: root
+    entrypoint: [""]
 
-    ' | xonsh-wrapper.xsh
+  script:
+    - echo "Running tcb-build"
+    - xonsh ./.vscode/tasks.xsh run tcb-build
 
-  cache:
-    key: tcb-build
-    policy: push
-    untracked: true
-    when: on_success
+    - echo "Decoding credentials"
+    - echo "$PLATFORM_CREDENTIALS" | base64 -d > credentials.zip
 
-push-package-to-platform:
-  needs:
-    - tcb-build
+    - echo "Pushing to platform"
+    - xonsh ./.vscode/tasks.xsh run tcb-platform-push-ostree
+
   dependencies:
-    - tcb-build
-  stage: platform
+    - initial_setup
+
+
+deploy_to_fleet:
+  stage: deploy
   image:
-    name: torizonextras/xonsh-wrapper:dev
-
-  variables:
-    TASKS_ITERATIVE: "False"
-
-  script: |
-    echo $PLATFORM_CREDENTIALS | base64 -d > credentials.zip
-    echo '
-
-      ./.vscode/tasks.ps1 run tcb-setup
-      ./.vscode/tasks.ps1 run tcb-platform-push-ostree
-
-    ' | xonsh-wrapper.xsh
-
-  cache:
-    key: tcb-build
-    untracked: true
-    policy: pull
-
-# trigger a deployment to the fleet only when pushing to main branch
-update-fleet:
-  needs:
-    - tcb-build
-    - push-package-to-platform
-  stage: platform
+    name: torizonextras/torizon-dev:dev
+    docker:
+      user: root
+    entrypoint: [""]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-  image:
-    name: torizonextras/xonsh-wrapper:dev
+  script:
+    - xonsh ./.vscode/tasks.xsh run platform-update-fleet
 
-  variables:
-    TASKS_ITERATIVE: "False"
-    TASKS_OVERRIDE_ENV: "False"
-
-  script: |
-    echo $PLATFORM_CREDENTIALS | base64 -d > credentials.zip
-    echo '
-
-      ./.vscode/tasks.ps1 run platform-update-fleet
-
-    ' | xonsh-wrapper.xsh
+  dependencies:
+    - build_and_push

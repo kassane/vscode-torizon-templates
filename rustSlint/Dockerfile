@@ -11,6 +11,11 @@ ARG BASE_VERSION=4
 ARG IMAGE_ARCH=
 
 ##
+# Host architecture
+##
+ARG HOST_ARCH=
+
+##
 # Directory of the application inside container
 ##
 ARG APP_ROOT=
@@ -22,7 +27,7 @@ ARG GPU=
 
 
 # BUILD ------------------------------------------------------------------------
-FROM torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
+FROM --platform=linux/${HOST_ARCH} torizon/cross-toolchain-${IMAGE_ARCH}:${CROSS_SDK_BASE_TAG} AS build
 
 ARG IMAGE_ARCH
 ARG GPU
@@ -34,6 +39,9 @@ RUN if [ "$IMAGE_ARCH" = "arm64" ] ; then \
         echo aarch64-unknown-linux-gnu > /rust-toolchain-arch.txt; \
         echo arm64 > /cross-toolchain-arch.txt; \
     elif [ "$IMAGE_ARCH" = "armhf" ] ; then \
+        echo armv7-unknown-linux-gnueabihf > /rust-toolchain-arch.txt; \
+        echo armhf > /cross-toolchain-arch.txt; \
+    elif [ "$IMAGE_ARCH" = "arm" ] ; then \
         echo armv7-unknown-linux-gnueabihf > /rust-toolchain-arch.txt; \
         echo armhf > /cross-toolchain-arch.txt; \
     elif [ "$IMAGE_ARCH" = "amd64" ] ; then \
@@ -90,9 +98,6 @@ RUN apt-get -q -y update && \
     rm -rf /var/lib/apt/lists/*
 # __deps__
 
-# Don't require font-config when the compiler runs
-ENV RUST_FONTCONFIG_DLOPEN=on
-
 COPY . ${APP_ROOT}
 WORKDIR ${APP_ROOT}
 
@@ -120,6 +125,7 @@ RUN apt-get -q -y update && \
         if [ "${GPU}" = "-vivante" ] || [ "${GPU}" = "-imx8" ]; then \
             apt-get -q -y install \
             imx-gpu-viv-wayland-dev \
+            libgles-dev \
         ; else \
             apt-get -q -y install \
             libgl1 \
